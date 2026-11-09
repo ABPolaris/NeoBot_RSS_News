@@ -1,0 +1,26 @@
+[project]
+name = "NeoBot_RSS_News"
+version = "0.1.0"
+description = "NeoBot 插件：定期从 RSS 源获取文章并私聊发送给接收者"
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "AkiPolaris" }]
+dependencies = [
+    "pydantic>=2,<3",
+    "feedparser>=6.0,<7",
+    "lxml>=5,<7",
+    "httpx>=0.27,<0.29",
+    "aiosqlite>=0.20,<0.23",
+    "tzdata>=2024.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/ABPolaris/NeoBot_RSS_News"
+Repository = "https://github.com/ABPolaris/NeoBot_RSS_News"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]

@@ -1,0 +1,17 @@
+# qegg runtime state
+/.quailegg/state/
+/.quailegg/lock
+/.quailegg/assets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# 本地数据库与导出
+*.db
+*.db-wal
+*.db-shm

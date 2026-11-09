@@ -1,0 +1,125 @@
+"""把文章组装成待发送消息。
+
+规则：
+- 单条消息最多 3950 个 Unicode 字符；
+- 合并发送时文章之间空一行，超出上限立即切分；
+- 分订阅发送时每个订阅独立切分；
+- 分条发送时每篇一条；
+- 文章自身超过上限时截断。
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+
+from .config import Config, ContentFormat
+from .models import Article
+
+MAX_MESSAGE_CHARS = 3950
+
+
+@dataclass(frozen=True, slots=True)
+class MessageBundle:
+    """一条待发送消息及其包含的文章，失败时按文章逐条记账。"""
+
+    text: str
+    articles: tuple[Article, ...]
+
+
+def render_article(article: Article, content_format: ContentFormat) -> str:
+    title = article.display_title
+    link = article.link.strip()
+    lead = article.summary.strip()
+    body = article.body.strip()
+    if content_format == "title":
+        return title
+    if content_format == "title_link":
+        return f"{title}\n{link}" if link else title
+    if content_format == "title_lead":
+        return f"{title}\n{lead}" if lead else title
+    if content_format == "title_body":
+        return f"{title}\n{body}" if body else title
+    parts = [title]
+    if link:
+        parts.append(link)
+    if lead:
+        parts.append(lead)
+    return "\n".join(parts)
+
+
+def pack_messages(
+    articles: Sequence[Article],
+    content_format: ContentFormat,
+    *,
+    limit: int = MAX_MESSAGE_CHARS,
+) -> list[MessageBundle]:
+    """按文章顺序尽量合并，单条消息不超过 limit。"""
+
+    bundles: list[MessageBundle] = []
+    texts: list[str] = []
+    included: list[Article] = []
+    current_length = 0
+    for article in articles:
+        text = render_article(article, content_format)[:limit]
+        if not text:
+            continue
+        addition = len(text) + (2 if texts else 0)
+        if texts and current_length + addition > limit:
+            bundles.append(MessageBundle("\n\n".join(texts), tuple(included)))
+            texts = []
+            included = []
+            current_length = 0
+        texts.append(text)
+        included.append(article)
+        current_length += len(text) + (2 if len(texts) > 1 else 0)
+    if texts:
+        bundles.append(MessageBundle("\n\n".join(texts), tuple(included)))
+    return bundles
+
+
+def compose_messages(
+    groups: Sequence[tuple[int, Sequence[Article]]],
+    config: Config,
+) -> list[MessageBundle]:
+    """按发送格式把（订阅 id, 文章）分组组装成消息列表。"""
+
+    if config.send_format == "merged":
+        merged = [article for _source_id, articles in groups for article in articles]
+        return pack_messages(merged, config.content_format)
+    if config.send_format == "per_article":
+        return [
+            MessageBundle(
+                render_article(article, config.content_format)[:MAX_MESSAGE_CHARS],
+                (article,),
+            )
+            for _source_id, articles in groups
+            for article in articles
+        ]
+    bundles: list[MessageBundle] = []
+    for _source_id, articles in groups:
+        bundles.extend(pack_messages(articles, config.content_format))
+    return bundles
+
+
+def starvation_warning(config: Config, subscription_count: int) -> str | None:
+    """订阅数 × 每订阅上限超过接收总数时，提示可能饿死的风险。"""
+
+    capacity = subscription_count * config.per_source_limit
+    if subscription_count <= 0 or capacity <= config.per_destination_limit:
+        return None
+    return (
+        f"当前 {subscription_count} 个订阅 × 每订阅 {config.per_source_limit} 篇 = "
+        f"{capacity} 篇，超过每位接收者 {config.per_destination_limit} 篇的发送总数上限；"
+        "排在后面的订阅可能长期发不出文章。建议提高“每接收者文章总数”或降低“每订阅发送文章数”。"
+    )
+
+
+__all__ = [
+    "MAX_MESSAGE_CHARS",
+    "MessageBundle",
+    "compose_messages",
+    "pack_messages",
+    "render_article",
+    "starvation_warning",
+]
