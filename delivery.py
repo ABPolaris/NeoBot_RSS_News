@@ -94,8 +94,11 @@ class NewsDelivery:
             await self.sender.send_text(user_id, NO_ARTICLES)
             return
         bundles: list[MessageBundle] = []
-        for _subscription, articles in groups:
-            bundles.extend(pack_messages(articles, config.content_format))
+        for subscription, articles in groups:
+            prefix = f"{subscription.display_name}："
+            bundles.extend(
+                pack_messages(articles, config.content_format, prefix=prefix)
+            )
         await self._send_bundles(user_id, bundles)
 
     async def _send_bundles(self, user_id: int, bundles: list[MessageBundle]) -> None:

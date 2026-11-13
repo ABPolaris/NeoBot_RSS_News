@@ -51,20 +51,34 @@ def pack_messages(
     content_format: ContentFormat,
     *,
     limit: int = MAX_MESSAGE_CHARS,
+    prefix: str = "",
 ) -> list[MessageBundle]:
-    """按文章顺序尽量合并，单条消息不超过 limit。"""
+    """按文章顺序尽量合并，单条消息不超过 limit。
+
+    ``prefix`` 会加在每条消息最前面（例如“源名称（源简称）：\n”），
+    并占用该条消息的 3950 字额度。
+    """
+
+    header = prefix.strip()
+    header_line = f"{header}\n" if header else ""
+    if len(header_line) >= limit:
+        header_line = header_line[: max(0, limit - 1)]
+    content_limit = max(1, limit - len(header_line))
+
+    def bundle(texts: list[str], included: list[Article]) -> MessageBundle:
+        return MessageBundle(header_line + "\n\n".join(texts), tuple(included))
 
     bundles: list[MessageBundle] = []
     texts: list[str] = []
     included: list[Article] = []
     current_length = 0
     for article in articles:
-        text = render_article(article, content_format)[:limit]
+        text = render_article(article, content_format)[:content_limit]
         if not text:
             continue
         addition = len(text) + (2 if texts else 0)
-        if texts and current_length + addition > limit:
-            bundles.append(MessageBundle("\n\n".join(texts), tuple(included)))
+        if texts and current_length + addition > content_limit:
+            bundles.append(bundle(texts, included))
             texts = []
             included = []
             current_length = 0
@@ -72,7 +86,7 @@ def pack_messages(
         included.append(article)
         current_length += len(text) + (2 if len(texts) > 1 else 0)
     if texts:
-        bundles.append(MessageBundle("\n\n".join(texts), tuple(included)))
+        bundles.append(bundle(texts, included))
     return bundles
 
 

@@ -166,8 +166,8 @@ async def test_all_news_order_limits_and_interval(plugin_env: Any) -> None:
     await plugin_env.run_command("所有RSS新闻", user_id=123456)
     await settle()
     assert plugin_env.adapter.messages == [
-        (123456, "A1\n\nA2"),
-        (123456, "B1"),
+        (123456, "中新网要闻导读（中新网）：\nA1\n\nA2"),
+        (123456, "IT之家（之家）：\nB1"),
     ]
     assert sleeps == [2.0]
 
