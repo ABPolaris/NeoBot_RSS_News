@@ -1,6 +1,6 @@
 [project]
 name = "NeoBot_RSS_News"
-version = "0.1.0"
+version = "0.3.0-a1"
 description = "NeoBot 插件：按聊天指令拉取 RSS 新闻并私聊发送"
 readme = "README.md"
 requires-python = ">=3.13"

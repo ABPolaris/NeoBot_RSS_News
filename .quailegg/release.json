@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "version": "0.3.0-a1",
+  "created_at": "2026-11-13T16:34:42.732363664+08:00",
+  "mode": "pr",
+  "channel": "alpha",
+  "fingerprint": "sha256:d9d1c57cced0ef26deb5b127e8d98095648113dd3f0f3a1615571980cd1f67c7",
+  "repo": {
+    "host": "github.com",
+    "owner": "ABPolaris",
+    "name": "NeoBot_RSS_News",
+    "url": "https://github.com/ABPolaris/NeoBot_RSS_News"
+  },
+  "verified": {
+    "commands": [
+      "uv run pytest -q"
+    ],
+    "skipped": true,
+    "at": "2026-11-13T16:34:42.732363874+08:00"
+  },
+  "packages": [
+    {
+      "name": "python@neobot-rss-news",
+      "path": ".",
+      "resolver": "python",
+      "current": "0.2.0",
+      "next": "0.3.0-a1",
+      "bump": "minor",
+      "tag": "v0.3.0a1",
+      "publish": false
+    }
+  ],
+  "releases": [
+    {
+      "version": "0.3.0-a1",
+      "tag": "v0.3.0a1",
+      "previous_tag": "v0.2.0",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "prerelease": "alpha"
+    }
+  ],
+  "changes": [
+    {
+      "file": ".changes/change.md",
+      "type": "feat",
+      "scope": "NeoBot_RSS_News",
+      "bump": "minor",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "改为指令驱动的按需拉取与私聊发送",
+      "commit": "4617816e861ab5c083752bc8667cee1434abdf28",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/4617816e861ab5c083752bc8667cee1434abdf28",
+      "author": "ABPolaris"
+    },
+    {
+      "file": ".changes/initial.md",
+      "type": "feat",
+      "bump": "minor",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "NeoBot_RSS_News 改为指令驱动的按需拉取与私聊发送：新增 /RSS新闻、/所有RSS新闻、/RSS列表、/设置昵称，取消定时发送、发送格式、接收者与已发送表，订阅增加唯一简称。",
+      "commit": "ba55871a1f1929c7f49126c84e7f3fc0a3ebba39",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/ba55871a1f1929c7f49126c84e7f3fc0a3ebba39",
+      "author": "ABPolaris"
+    },
+    {
+      "file": ".changes/qegg-changelog.md",
+      "type": "chore",
+      "scope": "changelog",
+      "bump": "patch",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "加入qegg的changelog",
+      "commit": "099488fe4736eb225ca62a029fed4ac763bb90fb",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/099488fe4736eb225ca62a029fed4ac763bb90fb"
+    },
+    {
+      "file": ".changes/quailegg.md",
+      "type": "chore",
+      "scope": "version",
+      "bump": "patch",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "修改版本号演进，适配QuailEgg",
+      "commit": "bee799979f6780f28dbf04720b53ed8fa27dabb2",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/bee799979f6780f28dbf04720b53ed8fa27dabb2"
+    }
+  ],
+  "qegg": {
+    "version": "0.12.0"
+  }
+}
