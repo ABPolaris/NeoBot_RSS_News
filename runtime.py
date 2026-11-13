@@ -1,27 +1,22 @@
-"""插件运行时容器：配置、数据库、抓取器、调度器与配置热重载。"""
+"""插件运行时容器：配置、数据库、抓取器与指令投递。"""
 
 from __future__ import annotations
 
-import asyncio
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .config import Config, coerce_config
+from .delivery import NewsDelivery
 from .fetch import RssFetcher
 from .presets import PRESETS
-from .scheduler import RssScheduler
 from .sender import PrivateMessageSender
 from .storage import RssNewsStore
 
 DATABASE_NAME = "rss_news.db"
 CONFIG_PATHS = (
     "send_enabled",
-    "send_every_days",
-    "send_time",
-    "timezone",
-    "send_format",
     "content_format",
     "per_source_limit",
     "per_destination_limit",
@@ -55,7 +50,7 @@ class RssNewsConfigConsumer:
             PluginHotReloadRule(
                 f"{prefix}.{field}",
                 True,
-                "保存后由调度器读取新配置，下一轮即生效",
+                "保存后由下一次指令读取新配置",
             )
             for field in CONFIG_PATHS
         )
@@ -80,32 +75,33 @@ class RssNewsRuntime:
         self.store: RssNewsStore | None = None
         self.fetcher: RssFetcher | None = None
         self.sender: PrivateMessageSender | None = None
-        self.scheduler: RssScheduler | None = None
+        self.delivery: NewsDelivery | None = None
         self._consumer: RssNewsConfigConsumer | None = None
         self._consumer_control: Any | None = None
 
     @classmethod
     def from_context(cls, ctx: Any) -> RssNewsRuntime:
-        runtime = cls(
+        return cls(
             coerce_config(getattr(ctx, "config", None)),
             Path(getattr(ctx, "data_dir", Path.cwd())),
             ctx=ctx,
             logger=getattr(ctx, "logger", None),
         )
-        return runtime
 
     async def load(self) -> None:
         store = RssNewsStore(self.data_dir / "databases" / DATABASE_NAME)
         await store.open()
         try:
-            await store.init_presets(PRESETS, int(time.time()))
+            now = int(time.time())
+            await store.init_presets(PRESETS, now)
+            await store.cleanup_articles(now, self.config.cache_days)
             fetcher = RssFetcher()
             sender = PrivateMessageSender(self.ctx)
-            scheduler = RssScheduler(
+            delivery = NewsDelivery(
                 store,
                 fetcher,
                 sender,
-                self.config,
+                lambda: self.config,
                 logger=self.logger,
             )
         except BaseException:
@@ -114,56 +110,24 @@ class RssNewsRuntime:
         self.store = store
         self.fetcher = fetcher
         self.sender = sender
-        self.scheduler = scheduler
+        self.delivery = delivery
         self.register_config_consumer()
 
-    def start(self) -> None:
-        if self.scheduler is None:
-            return
-        create_task = getattr(self.ctx, "create_task", None)
-        try:
-            self.scheduler.start(create_task=create_task)
-        except Exception as exc:
-            self.log_warning(f"启动调度任务失败：{type(exc).__name__}")
-            raise
-
     async def update_config(self, config: Config) -> None:
-        old = self.config
-        scheduler = self.scheduler
-        if scheduler is None:
-            self.config = config
-            return
-        try:
-            await scheduler.update_config(config)
-        except Exception:
-            scheduler.config = old
-            raise
         self.config = config
+        if self.store is not None:
+            await self.store.cleanup_articles(
+                int(time.time()), config.cache_days
+            )
 
     async def stop(self) -> None:
         self.unregister_config_consumer()
-        scheduler, self.scheduler = self.scheduler, None
-        if scheduler is not None:
-            await scheduler.stop()
         store, self.store = self.store, None
+        self.delivery = None
+        self.fetcher = None
+        self.sender = None
         if store is not None:
             await store.close()
-
-    async def pull_now(self) -> bool:
-        """在后台立即拉取一次；已有拉取在进行时返回 False。"""
-
-        scheduler = self.scheduler
-        if scheduler is None:
-            return False
-        if scheduler.pull_lock.locked():
-            return False
-        create_task = getattr(self.ctx, "create_task", None)
-        coroutine = scheduler.pull_round()
-        if callable(create_task):
-            create_task(coroutine, name="rss-news-pull-manual")
-        else:
-            asyncio.create_task(coroutine)
-        return True
 
     # ------------------------------------------------------------------ 配置热重载
 

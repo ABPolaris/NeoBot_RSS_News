@@ -1,8 +1,4 @@
-"""面板动作：订阅、接收者、状态与手动拉取。
-
-页面只通过声明动作访问业务；动作层负责把存储错误转换为可公开的中文
-ActionError，未知异常仍由 SDK 隐藏为通用失败。
-"""
+"""面板动作：订阅管理、状态、缓存文章与只读发送测试。"""
 
 from __future__ import annotations
 
@@ -11,7 +7,7 @@ import time
 from neobot_modloader import ActionError, Plugin
 
 from . import payloads as p
-from .composer import compose_messages, starvation_warning
+from .composer import pack_messages, starvation_warning
 from .errors import (
     DeliveryError,
     DuplicateValueError,
@@ -21,10 +17,9 @@ from .errors import (
     SubscriptionLimitError,
     UnsafeURLError,
 )
-from .models import Destination, Subscription
+from .models import Subscription
 from .net import validate_feed_url
 from .runtime import RssNewsRuntime
-from .schedule import compute_next_send
 from .storage import MAX_SUBSCRIPTIONS, RssNewsStore, available_weights
 
 _runtime: RssNewsRuntime | None = None
@@ -37,7 +32,7 @@ def set_runtime(runtime: RssNewsRuntime | None) -> None:
 
 def _store() -> tuple[RssNewsRuntime, RssNewsStore]:
     runtime = _runtime
-    if runtime is None or runtime.store is None or runtime.config is None:
+    if runtime is None or runtime.store is None:
         raise ActionError("not_ready", "插件尚未就绪，请稍后重试。")
     return runtime, runtime.store
 
@@ -47,21 +42,11 @@ def _sub_item(subscription: Subscription) -> p.SubscriptionItem:
         id=subscription.id,
         name=subscription.name,
         url=subscription.url,
+        nickname=subscription.nickname,
         weight=subscription.weight,
         created_at=subscription.created_at,
         pull_at=subscription.pull_at,
         article_count=subscription.article_count,
-    )
-
-
-def _destination_item(destination: Destination) -> p.DestinationItem:
-    return p.DestinationItem(
-        destination_id=destination.destination_id,
-        enabled=destination.enabled,
-        last_sent=destination.last_sent,
-        next_send=destination.next_send,
-        reason=destination.reason,
-        consecutive_failed_rounds=destination.consecutive_failed_rounds,
     )
 
 
@@ -85,7 +70,7 @@ def register_surface(plugin: Plugin) -> None:
     @plugin.action(
         "subscriptions.list",
         title="查看订阅",
-        description="列出订阅、权重与已缓存文章数。",
+        description="列出订阅、简称、权重与已缓存文章数。",
         permission="read",
         output_model=p.SubscriptionListOutput,
     )
@@ -102,7 +87,7 @@ def register_surface(plugin: Plugin) -> None:
     @plugin.action(
         "subscriptions.create",
         title="添加订阅",
-        description="添加一条 RSS 订阅；最多 7 条，URL 不能重复。",
+        description="添加一条 RSS 订阅；最多 7 条，URL 与昵称不能重复。",
         permission="manage",
         input_model=p.SubscriptionCreateInput,
         output_model=p.SubscriptionCreateOutput,
@@ -112,7 +97,11 @@ def register_surface(plugin: Plugin) -> None:
         try:
             url = await validate_feed_url(values.url, allow_unresolved=True)
             subscription = await store.add_subscription(
-                values.name.strip(), url, values.weight, int(time.time())
+                values.name.strip(),
+                url,
+                values.nickname,
+                values.weight,
+                int(time.time()),
             )
         except (RssNewsError, ValueError) as exc:
             raise _business_error(exc) from None
@@ -125,14 +114,19 @@ def register_surface(plugin: Plugin) -> None:
     @plugin.action(
         "subscriptions.update",
         title="修改订阅",
-        description="修改名称、URL 或权重；修改 URL 会清空该订阅的缓存与已发送记录。",
+        description="修改名称、简称、URL 或权重；修改 URL 会清空该订阅的缓存。",
         permission="manage",
         input_model=p.SubscriptionUpdateInput,
         output_model=p.SubscriptionUpdateOutput,
     )
     async def update_subscription(values, invocation):
         runtime, store = _store()
-        if values.name is None and values.url is None and values.weight is None:
+        if (
+            values.name is None
+            and values.url is None
+            and values.nickname is None
+            and values.weight is None
+        ):
             raise ActionError("invalid_input", "请至少修改一项内容。")
         try:
             url = (
@@ -144,6 +138,8 @@ def register_surface(plugin: Plugin) -> None:
                 values.id,
                 name=values.name.strip() if values.name is not None else None,
                 url=url,
+                nickname=values.nickname,
+                nickname_changed=values.nickname is not None,
                 weight=values.weight,
                 now=int(time.time()),
             )
@@ -159,7 +155,7 @@ def register_surface(plugin: Plugin) -> None:
     @plugin.action(
         "subscriptions.remove",
         title="删除订阅",
-        description="删除订阅，并级联删除其文章与已发送记录。",
+        description="删除订阅，并级联删除其文章缓存。",
         permission="manage",
         input_model=p.SubscriptionRemoveInput,
         output_model=p.RemovedOutput,
@@ -172,80 +168,6 @@ def register_surface(plugin: Plugin) -> None:
             raise _business_error(exc) from None
         if not removed:
             raise ActionError("not_found", "订阅不存在或已被删除。")
-        return p.RemovedOutput(removed=True)
-
-    @plugin.action(
-        "destinations.list",
-        title="查看接收者",
-        description="列出接收者 QQ、启停状态、发送时间与失败原因。",
-        permission="read",
-        output_model=p.DestinationListOutput,
-    )
-    async def list_destinations(values, invocation):
-        runtime, store = _store()
-        return p.DestinationListOutput(
-            items=[_destination_item(item) for item in await store.list_destinations()],
-            send_enabled=runtime.config.send_enabled,
-        )
-
-    @plugin.action(
-        "destinations.create",
-        title="添加接收者",
-        description="添加一个私聊 QQ 接收者；QQ 号格式由插件检查，有效性由用户自行验证。",
-        permission="manage",
-        input_model=p.DestinationCreateInput,
-        output_model=p.DestinationOutput,
-    )
-    async def create_destination(values, invocation):
-        runtime, store = _store()
-        now = int(time.time())
-        next_send = compute_next_send(None, now, runtime.config)
-        try:
-            destination = await store.add_destination(int(values.qq), next_send, now)
-        except (RssNewsError, ValueError) as exc:
-            raise _business_error(exc) from None
-        return p.DestinationOutput(item=_destination_item(destination))
-
-    @plugin.action(
-        "destinations.update",
-        title="启停接收者",
-        description="继续发送时清空失败原因与连续失败计数。",
-        permission="manage",
-        input_model=p.DestinationUpdateInput,
-        output_model=p.DestinationOutput,
-    )
-    async def update_destination(values, invocation):
-        _runtime, store = _store()
-        if values.enabled is None:
-            raise ActionError("invalid_input", "请指定是否继续发送。")
-        destination_id = int(values.qq)
-        existing = await store.get_destination(destination_id)
-        if existing is None:
-            raise ActionError("not_found", "接收者不存在或已被删除。")
-        if values.enabled:
-            destination = await store.set_destination_enabled(
-                destination_id, True, None
-            )
-            await store.set_failed_rounds(destination_id, 0)
-        else:
-            destination = await store.set_destination_enabled(
-                destination_id, False, existing.reason
-            )
-        return p.DestinationOutput(item=_destination_item(destination))
-
-    @plugin.action(
-        "destinations.remove",
-        title="删除接收者",
-        description="删除接收者并级联删除其已发送记录。",
-        permission="manage",
-        input_model=p.DestinationRemoveInput,
-        output_model=p.RemovedOutput,
-    )
-    async def remove_destination(values, invocation):
-        _runtime, store = _store()
-        removed = await store.delete_destination(int(values.qq))
-        if not removed:
-            raise ActionError("not_found", "接收者不存在或已被删除。")
         return p.RemovedOutput(removed=True)
 
     @plugin.action(
@@ -269,7 +191,6 @@ def register_surface(plugin: Plugin) -> None:
                     link=item.link,
                     pubdate=item.pubdate,
                     has_body=item.has_body,
-                    deleted=item.deleted,
                 )
                 for item in items
             ]
@@ -278,29 +199,17 @@ def register_surface(plugin: Plugin) -> None:
     @plugin.action(
         "status.get",
         title="查看运行状态",
-        description="查看发送配置、缓存计数与下一次发送时间。",
+        description="查看发送开关、缓存计数与最近拉取时间。",
         permission="read",
         output_model=p.StatusOutput,
     )
     async def get_status(values, invocation):
         runtime, store = _store()
         config = runtime.config
-        destinations = await store.list_destinations()
         subscriptions = await store.list_subscriptions()
-        upcoming = [
-            item.next_send
-            for item in destinations
-            if item.enabled and item.next_send is not None
-        ]
-        scheduler = runtime.scheduler
         return p.StatusOutput(
             server_time=int(time.time()),
-            running=bool(scheduler is not None and scheduler.running),
             send_enabled=config.send_enabled,
-            send_every_days=config.send_every_days,
-            send_time=config.send_time,
-            timezone=config.timezone,
-            send_format=config.send_format,
             content_format=config.content_format,
             per_source_limit=config.per_source_limit,
             per_destination_limit=config.per_destination_limit,
@@ -308,34 +217,18 @@ def register_surface(plugin: Plugin) -> None:
             cache_days=config.cache_days,
             message_interval_seconds=config.message_interval_seconds,
             subscription_count=len(subscriptions),
-            destination_count=len(destinations),
             article_count=await store.article_count(),
-            sent_count=await store.count_sent(),
             latest_pull_at=await store.latest_pull_at(),
-            next_send=min(upcoming) if upcoming else None,
             warning=starvation_warning(config, len(subscriptions)),
             supports_send_test=True,
         )
 
     @plugin.action(
-        "system.pull_now",
-        title="立即拉取",
-        description="在后台立即检查并拉取所有到期的 RSS 源。",
-        permission="operate",
-        output_model=p.PullNowOutput,
-    )
-    async def pull_now(values, invocation):
-        runtime = _runtime
-        if runtime is None:
-            raise ActionError("not_ready", "插件尚未就绪，请稍后重试。")
-        return p.PullNowOutput(started=await runtime.pull_now())
-
-    @plugin.action(
         "system.send_test",
         title="发送测试",
         description=(
-            "随机读取一篇缓存文章，按指定格式发送到私聊 QQ。"
-            "只读数据库与配置，不写入已发送记录，也不修改接收者。"
+            "随机读取一篇缓存文章，按指定内容发送到私聊 QQ。"
+            "只读数据库与配置，不写入任何记录，也不修改配置。"
         ),
         permission="manage",
         input_model=p.SendTestInput,
@@ -347,20 +240,13 @@ def register_surface(plugin: Plugin) -> None:
         if picked is None:
             raise ActionError(
                 "no_articles",
-                "缓存中没有可发送的文章，请先等待拉取完成后再试。",
+                "缓存中没有可发送的文章，请先请求一次新闻后再试。",
             )
         article, source_name = picked
         sender = runtime.sender
         if sender is None:
             raise ActionError("not_ready", "插件尚未就绪，请稍后重试。")
-        # 只改本次内存中的副本，不保存配置、不触碰接收者或已发送记录。
-        config = runtime.config.model_copy(
-            update={
-                "send_format": values.send_format,
-                "content_format": values.content_format,
-            }
-        )
-        bundles = compose_messages([(article.source_id, [article])], config)
+        bundles = pack_messages([article], values.content_format)
         if not bundles:
             raise ActionError("empty_message", "这篇文章没有可发送的内容。")
         text = bundles[0].text
@@ -368,7 +254,7 @@ def register_surface(plugin: Plugin) -> None:
             await sender.send_text(int(values.qq), text)
         except DeliveryError as exc:
             raise ActionError("send_failed", f"测试消息发送失败：{exc}") from None
-        except Exception:  # noqa: BLE001 - 适配器可抛任意异常，统一转成业务失败
+        except Exception:  # noqa: BLE001 - 适配器可抛任意异常
             raise ActionError(
                 "send_failed", "测试消息发送失败，请检查机器人连接。"
             ) from None

@@ -272,3 +272,33 @@
   margin-top: 0;
   border-color: color-mix(in srgb, var(--brand) 40%, var(--border));
 }
+
+.command-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.command-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control, 8px);
+  background: var(--surface-field, transparent);
+}
+
+.command-list code {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.command-list span {
+  color: var(--muted);
+  font-size: 12px;
+}

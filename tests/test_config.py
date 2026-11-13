@@ -1,4 +1,4 @@
-"""配置模型：默认值、时间/时区校验与范围约束。"""
+"""配置模型：指令驱动默认值、范围与静音开关。"""
 
 from __future__ import annotations
 
@@ -7,53 +7,41 @@ from NeoBot_RSS_News.config import Config, coerce_config
 from pydantic import ValidationError
 
 
-def test_defaults_match_requirements() -> None:
+def test_defaults() -> None:
     config = Config()
-    assert config.send_enabled is False
-    assert config.send_every_days == 1
-    assert config.send_time == "18:00"
-    assert config.timezone == "Asia/Shanghai"
-    assert config.send_format == "per_source"
+    assert config.send_enabled is True
     assert config.content_format == "title_link_lead"
     assert config.per_source_limit == 10
     assert config.per_destination_limit == 50
     assert config.pull_interval_minutes == 120
+    assert config.pull_interval_seconds == 7200
     assert config.cache_days == 10
     assert config.message_interval_seconds == 2
-    assert config.send_hour_minute == (18, 0)
-    assert config.pull_interval_seconds == 7200
-    assert config.send_window_seconds == 300
 
 
-@pytest.mark.parametrize("value", ["08:00", "00:00", "23:59", " 07:05 "])
-def test_valid_send_time(value: str) -> None:
-    assert Config(send_time=value).send_time == value.strip()
-
-
-@pytest.mark.parametrize("value", ["8:00", "24:00", "18:60", "", "18", "18:00:00", "a:b"])
-def test_invalid_send_time(value: str) -> None:
-    with pytest.raises(ValidationError, match="发送时间"):
-        Config(send_time=value)
-
-
-def test_invalid_timezone() -> None:
-    with pytest.raises(ValidationError, match="时区"):
-        Config(timezone="Mars/Olympus")
+def test_removed_timer_fields_are_ignored_for_upgrade() -> None:
+    # 旧 config.toml 可能仍带定时字段；忽略它们，避免升级后插件无法加载。
+    config = Config(
+        send_every_days=3,
+        send_time="18:00",
+        timezone="Asia/Shanghai",
+        send_format="per_source",
+    )
+    assert config.send_enabled is True
+    assert not hasattr(config, "send_time")
 
 
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("send_every_days", 0),
-        ("send_every_days", 8),
-        ("pull_interval_minutes", 14),
-        ("pull_interval_minutes", 721),
-        ("cache_days", 6),
-        ("cache_days", 31),
         ("per_source_limit", 0),
         ("per_source_limit", 101),
         ("per_destination_limit", 0),
         ("per_destination_limit", 501),
+        ("pull_interval_minutes", 14),
+        ("pull_interval_minutes", 721),
+        ("cache_days", 6),
+        ("cache_days", 31),
         ("message_interval_seconds", 0),
         ("message_interval_seconds", 6),
     ],
@@ -63,8 +51,8 @@ def test_range_constraints(field: str, value: int) -> None:
         Config(**{field: value})
 
 
-def test_coerce_config_from_mapping_and_model() -> None:
-    config = Config()
-    assert coerce_config(None) == config
-    assert coerce_config({"send_time": "09:30"}).send_time == "09:30"
-    assert coerce_config(config.model_dump()).send_time == "18:00"
+def test_coerce_config() -> None:
+    config = Config(send_enabled=False)
+    assert coerce_config(None) == Config()
+    assert coerce_config({"content_format": "title"}).content_format == "title"
+    assert coerce_config(config.model_dump()).send_enabled is False

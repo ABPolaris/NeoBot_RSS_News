@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .config import ContentFormat, SendFormat
+from .config import ContentFormat
 
 QQ_PATTERN = r"^[1-9]\d{4,12}$"
 
@@ -17,6 +17,7 @@ class SubscriptionItem(StrictModel):
     id: int
     name: str
     url: str
+    nickname: str = ""
     weight: int
     created_at: int
     pull_at: int | None = None
@@ -26,6 +27,7 @@ class SubscriptionItem(StrictModel):
 class SubscriptionCreateInput(StrictModel):
     name: str = Field(min_length=1, max_length=100)
     url: str = Field(min_length=1, max_length=2048)
+    nickname: str = Field(default="", max_length=64)
     weight: int | None = Field(default=None, ge=1, le=10)
 
 
@@ -33,6 +35,7 @@ class SubscriptionUpdateInput(StrictModel):
     id: int = Field(gt=0)
     name: str | None = Field(default=None, max_length=100)
     url: str | None = Field(default=None, max_length=2048)
+    nickname: str | None = Field(default=None, max_length=64)
     weight: int | None = Field(default=None, ge=1, le=10)
 
 
@@ -62,37 +65,6 @@ class RemovedOutput(StrictModel):
     removed: bool
 
 
-class DestinationItem(StrictModel):
-    destination_id: int
-    enabled: bool
-    last_sent: int | None = None
-    next_send: int | None = None
-    reason: str | None = None
-    consecutive_failed_rounds: int = 0
-
-
-class DestinationCreateInput(StrictModel):
-    qq: str = Field(pattern=QQ_PATTERN)
-
-
-class DestinationUpdateInput(StrictModel):
-    qq: str = Field(pattern=QQ_PATTERN)
-    enabled: bool | None = None
-
-
-class DestinationRemoveInput(StrictModel):
-    qq: str = Field(pattern=QQ_PATTERN)
-
-
-class DestinationListOutput(StrictModel):
-    items: list[DestinationItem]
-    send_enabled: bool
-
-
-class DestinationOutput(StrictModel):
-    item: DestinationItem
-
-
 class ArticleItem(StrictModel):
     source_id: int
     source_name: str
@@ -101,7 +73,6 @@ class ArticleItem(StrictModel):
     link: str
     pubdate: int
     has_body: bool
-    deleted: bool
 
 
 class ArticleListInput(StrictModel):
@@ -114,12 +85,7 @@ class ArticleListOutput(StrictModel):
 
 class StatusOutput(StrictModel):
     server_time: int
-    running: bool
     send_enabled: bool
-    send_every_days: int
-    send_time: str
-    timezone: str
-    send_format: str
     content_format: str
     per_source_limit: int
     per_destination_limit: int
@@ -127,22 +93,14 @@ class StatusOutput(StrictModel):
     cache_days: int
     message_interval_seconds: int
     subscription_count: int
-    destination_count: int
     article_count: int
-    sent_count: int
     latest_pull_at: int | None = None
-    next_send: int | None = None
     warning: str | None = None
     supports_send_test: bool = True
 
 
-class PullNowOutput(StrictModel):
-    started: bool
-
-
 class SendTestInput(StrictModel):
     qq: str = Field(pattern=QQ_PATTERN)
-    send_format: SendFormat
     content_format: ContentFormat
 
 
@@ -161,13 +119,6 @@ __all__ = [
     "ArticleItem",
     "ArticleListInput",
     "ArticleListOutput",
-    "DestinationCreateInput",
-    "DestinationItem",
-    "DestinationListOutput",
-    "DestinationOutput",
-    "DestinationRemoveInput",
-    "DestinationUpdateInput",
-    "PullNowOutput",
     "RemovedOutput",
     "SendTestInput",
     "SendTestOutput",

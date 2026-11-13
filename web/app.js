@@ -4,11 +4,6 @@
 
   const sdk = window.NeoBotPlugin;
   const byId = (id) => document.getElementById(id);
-  const SEND_FORMAT_LABELS = {
-    merged: "尽可能合并",
-    per_source: "分订阅发送",
-    per_article: "分条发送",
-  };
   const CONTENT_FORMAT_LABELS = {
     title: "仅标题",
     title_link: "标题和链接",
@@ -20,9 +15,7 @@
   const state = {
     context: null,
     busy: false,
-    initialized: false,
     subscriptions: [],
-    destinations: [],
     editingId: null,
     editingWeight: null,
     maxCount: 7,
@@ -42,15 +35,10 @@
   }
 
   function canManage() {
-    return live() && Array.isArray(state.context.permissions) && state.context.permissions.includes("manage");
-  }
-
-  function canOperate() {
     return (
       live() &&
       Array.isArray(state.context.permissions) &&
-      (state.context.permissions.includes("operate") ||
-        state.context.permissions.includes("manage"))
+      state.context.permissions.includes("manage")
     );
   }
 
@@ -148,23 +136,18 @@
   function updateControls() {
     const available = live();
     const manage = canManage();
-    const operate = canOperate();
     const locked = state.busy || !available;
     byId("refresh").disabled = locked;
-    byId("pull-now").disabled = locked || !operate;
     byId("load-articles").disabled = locked;
     document
       .querySelectorAll("#subscription-form input, #subscription-form select")
       .forEach((element) => {
         element.disabled = locked || !manage;
       });
-    document
-      .querySelectorAll("#destination-form input")
-      .forEach((element) => {
-        element.disabled = locked || !manage;
-      });
-    byId("dest-submit").disabled = locked || !manage;
     byId("sub-cancel").disabled = locked || !manage;
+    const atLimit = state.subscriptions.length >= state.maxCount;
+    byId("sub-submit").disabled =
+      locked || !manage || (atLimit && state.editingId === null);
     document
       .querySelectorAll("#send-test input, #send-test select")
       .forEach((element) => {
@@ -173,9 +156,6 @@
     byId("test-submit").disabled =
       locked || !manage || state.backendSupportsTest === false;
     byId("test-cancel").disabled = locked;
-    const atLimit = state.subscriptions.length >= state.maxCount;
-    byId("sub-submit").disabled =
-      locked || !manage || (atLimit && state.editingId === null);
     document.querySelectorAll("[data-manage]").forEach((element) => {
       element.disabled = locked || !manage;
     });
@@ -183,31 +163,26 @@
 
   function renderStatus(data) {
     byId("status-send").textContent = data.send_enabled
-      ? `已开启 · ${SEND_FORMAT_LABELS[data.send_format] || data.send_format}`
-      : "未开启（默认不发送）";
-    byId("status-send").title = `发送内容：${CONTENT_FORMAT_LABELS[data.content_format] || data.content_format}`;
-    byId("status-cycle").textContent = `每 ${data.send_every_days} 天 ${data.send_time}（${data.timezone}）`;
-    byId("status-next").textContent = !data.send_enabled
-      ? "未启用定期发送"
-      : data.next_send
-        ? formatTime(data.next_send)
-        : "暂无启用的接收者";
-    byId("status-pull").textContent = `每 ${data.pull_interval_minutes} 分钟`;
+      ? "已开启"
+      : "已静音（不发送新闻）";
+    byId("status-content").textContent =
+      CONTENT_FORMAT_LABELS[data.content_format] || data.content_format;
+    byId("status-pull").textContent = `至少间隔 ${data.pull_interval_minutes} 分钟`;
+    byId("status-cache").textContent = `${data.cache_days} 天`;
     byId("status-articles").textContent = `${data.article_count} 篇`;
-    byId("status-articles").title = `已发送记录 ${data.sent_count} 条`;
     byId("status-latest-pull").textContent = formatTime(data.latest_pull_at);
-    byId("status-counts").textContent = `${data.subscription_count} / ${data.destination_count}`;
-    byId("status-running").textContent = data.running ? "运行中" : "已停止";
+    byId("status-counts").textContent = `${data.subscription_count} / ${state.maxCount}`;
+    byId("status-interval").textContent = `${data.message_interval_seconds} 秒`;
     byId("status-updated").textContent = `更新于 ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`;
     state.backendSupportsTest = data.supports_send_test === true;
     byId("test-stale").hidden = state.backendSupportsTest;
     if (!state.testDefaultsSet) {
-      const format = byId("test-format");
       const content = byId("test-content");
-      if (Array.from(format.options).some((option) => option.value === data.send_format)) {
-        format.value = data.send_format;
-      }
-      if (Array.from(content.options).some((option) => option.value === data.content_format)) {
+      if (
+        Array.from(content.options).some(
+          (option) => option.value === data.content_format,
+        )
+      ) {
         content.value = data.content_format;
       }
       state.testDefaultsSet = true;
@@ -287,7 +262,7 @@
     if (!state.subscriptions.length) {
       const row = document.createElement("tr");
       const empty = cell("暂无订阅");
-      empty.colSpan = 6;
+      empty.colSpan = 7;
       empty.className = "empty-row";
       row.append(empty);
       body.append(row);
@@ -295,6 +270,7 @@
     for (const item of state.subscriptions) {
       const row = document.createElement("tr");
       row.append(cell(item.name || "（未命名）"));
+      row.append(cell(item.nickname || "—"));
       const url = document.createElement("span");
       url.className = "url-cell";
       url.textContent = item.url;
@@ -306,19 +282,12 @@
       row.append(cell(weight, "num"));
       row.append(cell(String(item.article_count || 0), "num"));
       row.append(cell(formatTime(item.pull_at) === "—" ? "未拉取" : formatTime(item.pull_at)));
-      const edit = button(
-        "编辑",
-        "nb-quiet",
-        () => {
-          startEdit(item);
-        },
-        true,
-      );
+      const edit = button("编辑", "nb-quiet", () => startEdit(item), true);
       const remove = button("删除", "nb-danger", () => {}, true);
       armDelete(remove, () => {
         run(async () => {
           await call("subscriptions.remove", { id: item.id });
-          notify("订阅已删除", `「${item.name}」的文章与已发送记录已一并删除。`, "ok");
+          notify("订阅已删除", `「${item.name}」的文章缓存已一并删除。`, "ok");
           if (state.editingId === item.id) resetSubscriptionForm();
           await loadSubscriptions();
           await loadStatus();
@@ -332,7 +301,8 @@
 
   function renderWeightOptions(weights, current) {
     const select = byId("sub-weight");
-    const previous = current === null || current === undefined ? select.value : String(current);
+    const previous =
+      current === null || current === undefined ? select.value : String(current);
     const values = new Set(weights.map((value) => Number(value)));
     if (current !== null && current !== undefined) values.add(Number(current));
     const options = [new Option("自动（最小可用权重）", "")];
@@ -340,7 +310,10 @@
       options.push(new Option(`权重 ${value}`, String(value)));
     }
     select.replaceChildren(...options);
-    if (previous && Array.from(select.options).some((option) => option.value === previous)) {
+    if (
+      previous &&
+      Array.from(select.options).some((option) => option.value === previous)
+    ) {
       select.value = previous;
     } else {
       select.value = "";
@@ -355,6 +328,7 @@
     byId("sub-cancel").hidden = false;
     byId("sub-edit-hint").hidden = false;
     byId("sub-name").value = item.name;
+    byId("sub-nickname").value = item.nickname || "";
     byId("sub-url").value = item.url;
     renderWeightOptions(state.availableWeights, item.weight);
     byId("subscription-form").scrollIntoView({ block: "nearest" });
@@ -370,76 +344,10 @@
     byId("sub-cancel").hidden = true;
     byId("sub-edit-hint").hidden = true;
     byId("sub-name").value = "";
+    byId("sub-nickname").value = "";
     byId("sub-url").value = "";
     byId("sub-weight").value = "";
     renderWeightOptions(state.availableWeights, null);
-    updateControls();
-  }
-
-  function renderDestinations(data) {
-    state.destinations = Array.isArray(data.items) ? data.items : [];
-    byId("destination-count").textContent = `${state.destinations.length} 个${
-      data.send_enabled ? "" : " · 定期发送未开启"
-    }`;
-    byId("destination-empty").hidden = state.destinations.length > 0;
-    const body = byId("destination-rows");
-    clear(body);
-    if (!state.destinations.length) {
-      const row = document.createElement("tr");
-      const empty = cell("暂无接收者");
-      empty.colSpan = 6;
-      empty.className = "empty-row";
-      row.append(empty);
-      body.append(row);
-    }
-    for (const item of state.destinations) {
-      const row = document.createElement("tr");
-      row.append(cell(String(item.destination_id)));
-      const status = document.createElement("span");
-      status.className = `tag ${item.enabled ? "tag-ok" : "tag-bad"}`;
-      status.textContent = item.enabled ? "启用" : "已暂停";
-      row.append(cell(status));
-      row.append(cell(formatTime(item.last_sent)));
-      row.append(cell(formatTime(item.next_send)));
-      const reason = document.createElement("span");
-      reason.className = "reason-cell";
-      reason.textContent = item.reason || "—";
-      reason.title = item.reason || "";
-      row.append(cell(reason, "reason-cell"));
-      const toggle = button(
-        item.enabled ? "暂停" : "继续",
-        item.enabled ? "nb-quiet" : "nb-primary",
-        () => {
-          run(async () => {
-            const result = await call("destinations.update", {
-              qq: String(item.destination_id),
-              enabled: !item.enabled,
-            });
-            notify(
-              "接收者已更新",
-              result.item.enabled
-                ? `QQ ${item.destination_id} 将继续发送，失败原因已清空。`
-                : `QQ ${item.destination_id} 已暂停发送。`,
-              "ok",
-            );
-            await loadDestinations();
-            await loadStatus();
-          });
-        },
-        true,
-      );
-      const remove = button("删除", "nb-danger", () => {}, true);
-      armDelete(remove, () => {
-        run(async () => {
-          await call("destinations.remove", { qq: String(item.destination_id) });
-          notify("接收者已删除", `QQ ${item.destination_id} 的已发送记录已一并删除。`, "ok");
-          await loadDestinations();
-          await loadStatus();
-        });
-      });
-      row.append(actionsCell(toggle, remove));
-      body.append(row);
-    }
     updateControls();
   }
 
@@ -456,9 +364,11 @@
       title.textContent = item.title || "（无标题）";
       const meta = document.createElement("span");
       meta.className = "article-meta";
-      const parts = [item.source_name || `订阅 ${item.source_id}`, formatClock(item.pubdate)];
+      const parts = [
+        item.source_name || `订阅 ${item.source_id}`,
+        formatClock(item.pubdate),
+      ];
       if (!item.has_body) parts.push("无正文");
-      if (item.deleted) parts.push("已标记清理");
       meta.textContent = parts.join(" · ");
       entry.append(title, meta);
       list.append(entry);
@@ -475,35 +385,25 @@
     renderSubscriptions(data);
   }
 
-  async function loadDestinations() {
-    const data = await call("destinations.list");
-    renderDestinations(data);
-  }
-
   async function loadArticles() {
     const data = await call("articles.list", { limit: 20 });
     renderArticles(data);
   }
 
   async function loadAll() {
-    await Promise.all([
-      loadStatus(),
-      loadSubscriptions(),
-      loadDestinations(),
-      loadArticles(),
-    ]);
+    await Promise.all([loadStatus(), loadSubscriptions(), loadArticles()]);
   }
 
   function renderPlaceholders() {
     const values = [
       "status-send",
-      "status-cycle",
-      "status-next",
+      "status-content",
       "status-pull",
+      "status-cache",
       "status-articles",
       "status-latest-pull",
       "status-counts",
-      "status-running",
+      "status-interval",
     ];
     values.forEach((id) => {
       byId(id).textContent = "—";
@@ -511,12 +411,9 @@
     byId("status-updated").textContent = "";
     setWarning("");
     byId("subscription-count").textContent = "—";
-    byId("destination-count").textContent = "—";
     byId("subscription-empty").hidden = true;
-    byId("destination-empty").hidden = true;
     byId("article-empty").hidden = true;
     clear(byId("subscription-rows"));
-    clear(byId("destination-rows"));
     clear(byId("article-list"));
     byId("send-test").hidden = true;
     byId("unavailable").hidden = live();
@@ -527,6 +424,7 @@
     event.preventDefault();
     if (!canManage()) return;
     const name = byId("sub-name").value.trim();
+    const nickname = byId("sub-nickname").value.trim();
     const url = byId("sub-url").value.trim();
     const weightText = byId("sub-weight").value;
     if (!name) {
@@ -539,7 +437,7 @@
       byId("sub-url").focus();
       return;
     }
-    const payload = { name, url };
+    const payload = { name, nickname, url };
     if (weightText) payload.weight = Number(weightText);
     run(async () => {
       const editing = state.editingId !== null;
@@ -555,8 +453,8 @@
       notify(
         editing ? "订阅已更新" : "订阅已添加",
         editing && result.url_changed
-          ? "URL 已修改，旧文章缓存与已发送记录已清空。"
-          : "插件会在下一轮拉取时获取该源的文章。",
+          ? "URL 已修改，旧文章缓存已清空。"
+          : "该订阅会在用户请求新闻时按需拉取。",
         "ok",
       );
       if (result.warning) {
@@ -565,24 +463,6 @@
       }
       resetSubscriptionForm();
       await loadSubscriptions();
-      await loadStatus();
-    });
-  }
-
-  function submitDestination(event) {
-    event.preventDefault();
-    if (!canManage()) return;
-    const qq = byId("dest-qq").value.trim();
-    if (!/^[1-9][0-9]{4,12}$/.test(qq)) {
-      notify("QQ 号格式不正确", "请输入 5-13 位、不以 0 开头的数字 QQ 号。", "warn");
-      byId("dest-qq").focus();
-      return;
-    }
-    run(async () => {
-      await call("destinations.create", { qq });
-      notify("接收者已添加", `QQ ${qq} 会在下次发送窗口接收文章。`, "ok");
-      byId("dest-qq").value = "";
-      await loadDestinations();
       await loadStatus();
     });
   }
@@ -611,12 +491,10 @@
       byId("test-qq").focus();
       return;
     }
-    const sendFormat = byId("test-format").value;
     const contentFormat = byId("test-content").value;
     run(async () => {
       const result = await call("system.send_test", {
         qq,
-        send_format: sendFormat,
         content_format: contentFormat,
       });
       const title = textValue(result.title).slice(0, 80) || "（无标题）";
@@ -633,19 +511,6 @@
     byId("refresh").addEventListener("click", () => {
       run(loadAll);
     });
-    byId("pull-now").addEventListener("click", () => {
-      run(async () => {
-        const result = await call("system.pull_now");
-        if (result.started) {
-          notify("已开始拉取", "拉取在后台进行，完成后可刷新查看缓存文章。", "info");
-          window.setTimeout(() => {
-            if (live() && !state.busy) run(loadStatus, { quiet: true });
-          }, 4000);
-        } else {
-          notify("已有拉取在进行", "请等待当前拉取完成后再试。", "warn");
-        }
-      });
-    });
     byId("load-articles").addEventListener("click", () => {
       run(loadArticles);
     });
@@ -653,7 +518,6 @@
     byId("test-cancel").addEventListener("click", closeSendTest);
     byId("send-test-form").addEventListener("submit", submitSendTest);
     byId("subscription-form").addEventListener("submit", submitSubscription);
-    byId("destination-form").addEventListener("submit", submitDestination);
     byId("sub-cancel").addEventListener("click", resetSubscriptionForm);
   }
 
@@ -662,9 +526,8 @@
       "status",
       "subscriptions",
       "subscription-form",
-      "destinations",
-      "destination-form",
       "send-test",
+      "commands",
       "articles",
     ]) {
       const element = byId(id);
@@ -702,7 +565,6 @@
     });
     sdk.onGuideStep(() => {});
     if (live()) {
-      state.initialized = true;
       byId("unavailable").hidden = true;
       await run(loadAll);
     } else {

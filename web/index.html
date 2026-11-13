@@ -15,7 +15,8 @@
         <div>
           <h1>RSS 订阅管理</h1>
           <p class="nb-help">
-            定时抓取 RSS 文章并按权重私聊发送。订阅最多 7 条；停用等同于删除。
+            插件不再定时发送：只有用户在私聊中请求新闻时才按需拉取并发送。
+            订阅最多 7 条；停用等同于删除。
           </p>
         </div>
         <div class="nb-actions">
@@ -23,7 +24,6 @@
           <button id="test-open" class="nb-quiet" type="button" data-manage="1">
             发送测试
           </button>
-          <button id="pull-now" class="nb-primary" type="button">立即拉取</button>
         </div>
       </header>
 
@@ -38,20 +38,20 @@
         </div>
         <div class="status-grid">
           <div class="status-item">
-            <span class="status-label">定期发送</span>
+            <span class="status-label">新闻发送</span>
             <span id="status-send" class="status-value">—</span>
           </div>
           <div class="status-item">
-            <span class="status-label">发送周期</span>
-            <span id="status-cycle" class="status-value">—</span>
-          </div>
-          <div class="status-item">
-            <span class="status-label">下次发送</span>
-            <span id="status-next" class="status-value">—</span>
+            <span class="status-label">发送内容</span>
+            <span id="status-content" class="status-value">—</span>
           </div>
           <div class="status-item">
             <span class="status-label">拉取间隔</span>
             <span id="status-pull" class="status-value">—</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">缓存天数</span>
+            <span id="status-cache" class="status-value">—</span>
           </div>
           <div class="status-item">
             <span class="status-label">缓存文章</span>
@@ -62,12 +62,12 @@
             <span id="status-latest-pull" class="status-value">—</span>
           </div>
           <div class="status-item">
-            <span class="status-label">订阅 / 接收者</span>
+            <span class="status-label">订阅数量</span>
             <span id="status-counts" class="status-value">—</span>
           </div>
           <div class="status-item">
-            <span class="status-label">调度任务</span>
-            <span id="status-running" class="status-value">—</span>
+            <span class="status-label">消息间隔</span>
+            <span id="status-interval" class="status-value">—</span>
           </div>
         </div>
       </section>
@@ -80,8 +80,8 @@
           <span class="muted">只读缓存，不写数据库 / 配置</span>
         </div>
         <p class="nb-help">
-          从缓存中随机取一篇文章，按所选发送格式和内容发送到指定私聊 QQ。
-          测试不会写入已发送记录，不会修改接收者，也不会保存配置；单篇文章在三种发送格式下都只会产生一条消息。
+          从缓存中随机取一篇文章，按所选发送内容发送到指定私聊 QQ。
+          测试不会写入任何记录，不会修改订阅，也不会保存配置。
         </p>
         <p id="test-stale" class="banner banner-warn" hidden>
           当前运行的后端还没有“发送测试”动作。页面资源可能比插件后端新，请在插件管理中重载插件或重启 NeoBot，再刷新此页面。
@@ -98,14 +98,6 @@
                 pattern="[1-9][0-9]{4,12}"
                 placeholder="5-13 位数字，不以 0 开头"
               />
-            </div>
-            <div class="nb-field">
-              <label for="test-format">发送格式</label>
-              <select id="test-format" name="send_format">
-                <option value="merged">消息-尽可能合并发送</option>
-                <option value="per_source">消息-分订阅发送</option>
-                <option value="per_article">消息-分条发送</option>
-              </select>
             </div>
             <div class="nb-field">
               <label for="test-content">发送内容</label>
@@ -138,6 +130,7 @@
             <thead>
               <tr>
                 <th>名称</th>
+                <th>简称</th>
                 <th>RSS 地址</th>
                 <th class="num">权重</th>
                 <th class="num">文章</th>
@@ -160,6 +153,16 @@
               <input id="sub-name" name="name" maxlength="100" placeholder="例如 IT之家" />
             </div>
             <div class="nb-field">
+              <label for="sub-nickname">简称（昵称）</label>
+              <input
+                id="sub-nickname"
+                name="nickname"
+                maxlength="64"
+                placeholder="例如 之家；可留空"
+              />
+              <p class="nb-help">简称用于“RSS新闻 简称”，可为空，不可重复。</p>
+            </div>
+            <div class="nb-field">
               <label for="sub-url">RSS 地址</label>
               <input
                 id="sub-url"
@@ -173,11 +176,11 @@
             <div class="nb-field">
               <label for="sub-weight">权重</label>
               <select id="sub-weight" name="weight"></select>
-              <p class="nb-help">数值越小越先发送；不选则自动使用最小可用权重。</p>
+              <p class="nb-help">数值越小优先级越高；不选则自动使用最小可用权重。</p>
             </div>
           </div>
           <p id="sub-edit-hint" class="nb-help" hidden>
-            修改 RSS 地址会清空该订阅的缓存与已发送记录，并立即重新拉取。
+            修改 RSS 地址会清空该订阅的文章缓存，并立即重新拉取。
           </p>
           <div class="nb-actions">
             <button id="sub-submit" class="nb-primary" type="submit">添加订阅</button>
@@ -186,53 +189,29 @@
         </form>
       </section>
 
-      <section id="destinations" class="nb-section">
+      <section id="commands" class="nb-section form-card">
         <div class="section-heading">
-          <h2>接收者</h2>
-          <span id="destination-count" class="muted">0 个</span>
+          <h2>可用指令</h2>
+          <span class="muted">新闻类指令仅支持私聊</span>
         </div>
-        <p class="nb-help">
-          接收者只支持私聊 QQ 号，不支持群号。格式合法不代表 QQ 有效，请自行验证。
-          每轮串行发送；失败达到阈值时插件会自动暂停该接收者并登记原因。
-        </p>
-        <p id="destination-empty" class="nb-empty" hidden>还没有接收者，添加一个 QQ 号后才会发送文章。</p>
-        <div class="nb-table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>QQ 号</th>
-                <th>状态</th>
-                <th>上次发送</th>
-                <th>下次发送</th>
-                <th>失败原因</th>
-                <th class="actions-col">操作</th>
-              </tr>
-            </thead>
-            <tbody id="destination-rows"></tbody>
-          </table>
-        </div>
-
-        <form id="destination-form" class="form-card" autocomplete="off">
-          <div class="section-heading">
-            <h3>添加接收者</h3>
-            <span class="muted">仅私聊</span>
-          </div>
-          <div class="nb-inline">
-            <div class="nb-field grow">
-              <label for="dest-qq">QQ 号</label>
-              <input
-                id="dest-qq"
-                name="qq"
-                inputmode="numeric"
-                maxlength="13"
-                pattern="[1-9][0-9]{4,12}"
-                placeholder="5-13 位数字，不以 0 开头"
-              />
-            </div>
-            <button id="dest-submit" class="nb-primary" type="submit">添加</button>
-          </div>
-          <p class="nb-help">添加后请先用该 QQ 私聊机器人，确认能正常收到消息。</p>
-        </form>
+        <ul class="command-list">
+          <li>
+            <code>/RSS新闻 [源名称/简称]</code>
+            <span>获取指定源最近文章；省略参数时使用权重最小的源。</span>
+          </li>
+          <li>
+            <code>/所有RSS新闻</code>
+            <span>按权重顺序获取所有源的文章，受用户接收文章最大数量限制。</span>
+          </li>
+          <li>
+            <code>/RSS列表</code>
+            <span>查看“源名称（源简称）”，私聊和群聊都可用。</span>
+          </li>
+          <li>
+            <code>/设置昵称 订阅全称 [订阅简称]</code>
+            <span>次级管理员以上可用；省略简称即清空。</span>
+          </li>
+        </ul>
       </section>
 
       <section id="articles" class="nb-section">
@@ -240,7 +219,7 @@
           <h2>最近缓存文章</h2>
           <button id="load-articles" class="nb-quiet" type="button">刷新文章</button>
         </div>
-        <p id="article-empty" class="nb-empty" hidden>还没有缓存文章。首次拉取完成后会显示在这里。</p>
+        <p id="article-empty" class="nb-empty" hidden>还没有缓存文章。首次请求新闻后会显示在这里。</p>
         <ul id="article-list" class="article-list"></ul>
       </section>
     </main>

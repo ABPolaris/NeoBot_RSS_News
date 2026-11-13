@@ -10,10 +10,15 @@ class Subscription:
     id: int
     name: str
     url: str
+    nickname: str
     weight: int
     created_at: int
     pull_at: int | None
     article_count: int = 0
+
+    @property
+    def display_name(self) -> str:
+        return f"{self.name}（{self.nickname}）" if self.nickname else self.name
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,16 +37,6 @@ class Article:
 
 
 @dataclass(frozen=True, slots=True)
-class Destination:
-    destination_id: int
-    last_sent: int | None
-    next_send: int | None
-    enabled: bool
-    reason: str | None
-    consecutive_failed_rounds: int = 0
-
-
-@dataclass(frozen=True, slots=True)
 class ArticlePreview:
     source_id: int
     source_name: str
@@ -50,7 +45,6 @@ class ArticlePreview:
     link: str
     pubdate: int
     has_body: bool
-    deleted: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,31 +63,10 @@ class FeedResult:
     entries: tuple[FeedEntry, ...]
 
 
-@dataclass(frozen=True, slots=True)
-class PullReport:
-    due: int = 0
-    succeeded: int = 0
-    failed: int = 0
-    inserted: int = 0
-    timed_out: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class SendReport:
-    destinations: int = 0
-    messages: int = 0
-    sent: int = 0
-    failed: int = 0
-    disabled: tuple[int, ...] = ()
-
-
 __all__ = [
     "Article",
     "ArticlePreview",
-    "Destination",
     "FeedEntry",
     "FeedResult",
-    "PullReport",
-    "SendReport",
     "Subscription",
 ]

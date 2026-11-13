@@ -1,7 +1,7 @@
 {
   "actions": [
     {
-      "description": "列出订阅、权重与已缓存文章数。",
+      "description": "列出订阅、简称、权重与已缓存文章数。",
       "id": "subscriptions.list",
       "input_schema": null,
       "output_schema": {
@@ -24,6 +24,11 @@
               },
               "name": {
                 "title": "Name",
+                "type": "string"
+              },
+              "nickname": {
+                "default": "",
+                "title": "Nickname",
                 "type": "string"
               },
               "pull_at": {
@@ -103,7 +108,7 @@
       "title": "查看订阅"
     },
     {
-      "description": "添加一条 RSS 订阅；最多 7 条，URL 不能重复。",
+      "description": "添加一条 RSS 订阅；最多 7 条，URL 与昵称不能重复。",
       "id": "subscriptions.create",
       "input_schema": {
         "additionalProperties": false,
@@ -112,6 +117,12 @@
             "maxLength": 100,
             "minLength": 1,
             "title": "Name",
+            "type": "string"
+          },
+          "nickname": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Nickname",
             "type": "string"
           },
           "url": {
@@ -162,6 +173,11 @@
               },
               "name": {
                 "title": "Name",
+                "type": "string"
+              },
+              "nickname": {
+                "default": "",
+                "title": "Nickname",
                 "type": "string"
               },
               "pull_at": {
@@ -224,7 +240,7 @@
       "title": "添加订阅"
     },
     {
-      "description": "修改名称、URL 或权重；修改 URL 会清空该订阅的缓存与已发送记录。",
+      "description": "修改名称、简称、URL 或权重；修改 URL 会清空该订阅的缓存。",
       "id": "subscriptions.update",
       "input_schema": {
         "additionalProperties": false,
@@ -246,6 +262,19 @@
             ],
             "default": null,
             "title": "Name"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Nickname"
           },
           "url": {
             "anyOf": [
@@ -301,6 +330,11 @@
               },
               "name": {
                 "title": "Name",
+                "type": "string"
+              },
+              "nickname": {
+                "default": "",
+                "title": "Nickname",
                 "type": "string"
               },
               "pull_at": {
@@ -368,7 +402,7 @@
       "title": "修改订阅"
     },
     {
-      "description": "删除订阅，并级联删除其文章与已发送记录。",
+      "description": "删除订阅，并级联删除其文章缓存。",
       "id": "subscriptions.remove",
       "input_schema": {
         "additionalProperties": false,
@@ -403,336 +437,6 @@
       "title": "删除订阅"
     },
     {
-      "description": "列出接收者 QQ、启停状态、发送时间与失败原因。",
-      "id": "destinations.list",
-      "input_schema": null,
-      "output_schema": {
-        "$defs": {
-          "DestinationItem": {
-            "additionalProperties": false,
-            "properties": {
-              "consecutive_failed_rounds": {
-                "default": 0,
-                "title": "Consecutive Failed Rounds",
-                "type": "integer"
-              },
-              "destination_id": {
-                "title": "Destination Id",
-                "type": "integer"
-              },
-              "enabled": {
-                "title": "Enabled",
-                "type": "boolean"
-              },
-              "last_sent": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Last Sent"
-              },
-              "next_send": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Next Send"
-              },
-              "reason": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Reason"
-              }
-            },
-            "required": [
-              "destination_id",
-              "enabled"
-            ],
-            "title": "DestinationItem",
-            "type": "object"
-          }
-        },
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/$defs/DestinationItem"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "send_enabled": {
-            "title": "Send Enabled",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "send_enabled"
-        ],
-        "title": "DestinationListOutput",
-        "type": "object"
-      },
-      "permission": "read",
-      "title": "查看接收者"
-    },
-    {
-      "description": "添加一个私聊 QQ 接收者；QQ 号格式由插件检查，有效性由用户自行验证。",
-      "id": "destinations.create",
-      "input_schema": {
-        "additionalProperties": false,
-        "properties": {
-          "qq": {
-            "pattern": "^[1-9]\\d{4,12}$",
-            "title": "Qq",
-            "type": "string"
-          }
-        },
-        "required": [
-          "qq"
-        ],
-        "title": "DestinationCreateInput",
-        "type": "object"
-      },
-      "output_schema": {
-        "$defs": {
-          "DestinationItem": {
-            "additionalProperties": false,
-            "properties": {
-              "consecutive_failed_rounds": {
-                "default": 0,
-                "title": "Consecutive Failed Rounds",
-                "type": "integer"
-              },
-              "destination_id": {
-                "title": "Destination Id",
-                "type": "integer"
-              },
-              "enabled": {
-                "title": "Enabled",
-                "type": "boolean"
-              },
-              "last_sent": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Last Sent"
-              },
-              "next_send": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Next Send"
-              },
-              "reason": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Reason"
-              }
-            },
-            "required": [
-              "destination_id",
-              "enabled"
-            ],
-            "title": "DestinationItem",
-            "type": "object"
-          }
-        },
-        "additionalProperties": false,
-        "properties": {
-          "item": {
-            "$ref": "#/$defs/DestinationItem"
-          }
-        },
-        "required": [
-          "item"
-        ],
-        "title": "DestinationOutput",
-        "type": "object"
-      },
-      "permission": "manage",
-      "title": "添加接收者"
-    },
-    {
-      "description": "继续发送时清空失败原因与连续失败计数。",
-      "id": "destinations.update",
-      "input_schema": {
-        "additionalProperties": false,
-        "properties": {
-          "enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Enabled"
-          },
-          "qq": {
-            "pattern": "^[1-9]\\d{4,12}$",
-            "title": "Qq",
-            "type": "string"
-          }
-        },
-        "required": [
-          "qq"
-        ],
-        "title": "DestinationUpdateInput",
-        "type": "object"
-      },
-      "output_schema": {
-        "$defs": {
-          "DestinationItem": {
-            "additionalProperties": false,
-            "properties": {
-              "consecutive_failed_rounds": {
-                "default": 0,
-                "title": "Consecutive Failed Rounds",
-                "type": "integer"
-              },
-              "destination_id": {
-                "title": "Destination Id",
-                "type": "integer"
-              },
-              "enabled": {
-                "title": "Enabled",
-                "type": "boolean"
-              },
-              "last_sent": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Last Sent"
-              },
-              "next_send": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Next Send"
-              },
-              "reason": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Reason"
-              }
-            },
-            "required": [
-              "destination_id",
-              "enabled"
-            ],
-            "title": "DestinationItem",
-            "type": "object"
-          }
-        },
-        "additionalProperties": false,
-        "properties": {
-          "item": {
-            "$ref": "#/$defs/DestinationItem"
-          }
-        },
-        "required": [
-          "item"
-        ],
-        "title": "DestinationOutput",
-        "type": "object"
-      },
-      "permission": "manage",
-      "title": "启停接收者"
-    },
-    {
-      "description": "删除接收者并级联删除其已发送记录。",
-      "id": "destinations.remove",
-      "input_schema": {
-        "additionalProperties": false,
-        "properties": {
-          "qq": {
-            "pattern": "^[1-9]\\d{4,12}$",
-            "title": "Qq",
-            "type": "string"
-          }
-        },
-        "required": [
-          "qq"
-        ],
-        "title": "DestinationRemoveInput",
-        "type": "object"
-      },
-      "output_schema": {
-        "additionalProperties": false,
-        "properties": {
-          "removed": {
-            "title": "Removed",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "removed"
-        ],
-        "title": "RemovedOutput",
-        "type": "object"
-      },
-      "permission": "manage",
-      "title": "删除接收者"
-    },
-    {
       "description": "查看最近缓存文章，用于确认拉取是否正常。",
       "id": "articles.list",
       "input_schema": {
@@ -754,10 +458,6 @@
           "ArticleItem": {
             "additionalProperties": false,
             "properties": {
-              "deleted": {
-                "title": "Deleted",
-                "type": "boolean"
-              },
               "guid": {
                 "title": "Guid",
                 "type": "string"
@@ -794,8 +494,7 @@
               "title",
               "link",
               "pubdate",
-              "has_body",
-              "deleted"
+              "has_body"
             ],
             "title": "ArticleItem",
             "type": "object"
@@ -821,7 +520,7 @@
       "title": "查看缓存文章"
     },
     {
-      "description": "查看发送配置、缓存计数与下一次发送时间。",
+      "description": "查看发送开关、缓存计数与最近拉取时间。",
       "id": "status.get",
       "input_schema": null,
       "output_schema": {
@@ -839,10 +538,6 @@
             "title": "Content Format",
             "type": "string"
           },
-          "destination_count": {
-            "title": "Destination Count",
-            "type": "integer"
-          },
           "latest_pull_at": {
             "anyOf": [
               {
@@ -859,18 +554,6 @@
             "title": "Message Interval Seconds",
             "type": "integer"
           },
-          "next_send": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Next Send"
-          },
           "per_destination_limit": {
             "title": "Per Destination Limit",
             "type": "integer"
@@ -883,29 +566,9 @@
             "title": "Pull Interval Minutes",
             "type": "integer"
           },
-          "running": {
-            "title": "Running",
-            "type": "boolean"
-          },
           "send_enabled": {
             "title": "Send Enabled",
             "type": "boolean"
-          },
-          "send_every_days": {
-            "title": "Send Every Days",
-            "type": "integer"
-          },
-          "send_format": {
-            "title": "Send Format",
-            "type": "string"
-          },
-          "send_time": {
-            "title": "Send Time",
-            "type": "string"
-          },
-          "sent_count": {
-            "title": "Sent Count",
-            "type": "integer"
           },
           "server_time": {
             "title": "Server Time",
@@ -919,10 +582,6 @@
             "default": true,
             "title": "Supports Send Test",
             "type": "boolean"
-          },
-          "timezone": {
-            "title": "Timezone",
-            "type": "string"
           },
           "warning": {
             "anyOf": [
@@ -939,12 +598,7 @@
         },
         "required": [
           "server_time",
-          "running",
           "send_enabled",
-          "send_every_days",
-          "send_time",
-          "timezone",
-          "send_format",
           "content_format",
           "per_source_limit",
           "per_destination_limit",
@@ -952,9 +606,7 @@
           "cache_days",
           "message_interval_seconds",
           "subscription_count",
-          "destination_count",
-          "article_count",
-          "sent_count"
+          "article_count"
         ],
         "title": "StatusOutput",
         "type": "object"
@@ -963,28 +615,7 @@
       "title": "查看运行状态"
     },
     {
-      "description": "在后台立即检查并拉取所有到期的 RSS 源。",
-      "id": "system.pull_now",
-      "input_schema": null,
-      "output_schema": {
-        "additionalProperties": false,
-        "properties": {
-          "started": {
-            "title": "Started",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "started"
-        ],
-        "title": "PullNowOutput",
-        "type": "object"
-      },
-      "permission": "operate",
-      "title": "立即拉取"
-    },
-    {
-      "description": "随机读取一篇缓存文章，按指定格式发送到私聊 QQ。只读数据库与配置，不写入已发送记录，也不修改接收者。",
+      "description": "随机读取一篇缓存文章，按指定内容发送到私聊 QQ。只读数据库与配置，不写入任何记录，也不修改配置。",
       "id": "system.send_test",
       "input_schema": {
         "additionalProperties": false,
@@ -1004,20 +635,10 @@
             "pattern": "^[1-9]\\d{4,12}$",
             "title": "Qq",
             "type": "string"
-          },
-          "send_format": {
-            "enum": [
-              "merged",
-              "per_source",
-              "per_article"
-            ],
-            "title": "Send Format",
-            "type": "string"
           }
         },
         "required": [
           "qq",
-          "send_format",
           "content_format"
         ],
         "title": "SendTestInput",
@@ -1072,11 +693,11 @@
     }
   ],
   "config": {
-    "description": "所有用户可调项。\n\n说明文字会出现在面板表单中；范围约束由宿主在保存前校验，\n运行期还会用同一模型再校验一次已存配置。",
+    "description": "指令驱动模式下的全部用户可调项。",
     "properties": {
       "cache_days": {
         "default": 10,
-        "description": "文章在本地保留的天数，范围 7 至 30 天，默认 10 天。",
+        "description": "文章在本地保留的天数，超期文章在下一次请求时立即删除。范围 7 至 30 天。",
         "maximum": 30,
         "minimum": 7,
         "title": "缓存保留天数",
@@ -1104,7 +725,7 @@
       },
       "message_interval_seconds": {
         "default": 2,
-        "description": "连续发送多条消息时的间隔，范围 1 至 5 秒，默认 2 秒。",
+        "description": "“所有RSS新闻”按订阅连续发送多条消息时的间隔，范围 1 至 5 秒。",
         "maximum": 5,
         "minimum": 1,
         "title": "多条消息间隔（秒）",
@@ -1112,15 +733,15 @@
       },
       "per_destination_limit": {
         "default": 50,
-        "description": "每个接收者每轮最多接收的文章总数，默认 50 篇。低于订阅数 × 每订阅上限时会提示饿死风险。",
+        "description": "单次请求最多接收的文章总数，默认 50 篇。低于“订阅数 × 每订阅上限”时，排在后面的订阅可能长期发不出文章。",
         "maximum": 500,
         "minimum": 1,
-        "title": "每接收者文章总数",
+        "title": "用户接收文章最大数量",
         "type": "integer"
       },
       "per_source_limit": {
         "default": 10,
-        "description": "每条订阅每轮最多发送的文章数，默认 10 篇。订阅数 × 本值超过每接收者总数时，后面的订阅可能长期发不出文章。",
+        "description": "每条订阅每次请求最多发送的文章数，默认 10 篇。",
         "maximum": 100,
         "minimum": 1,
         "title": "每订阅发送文章数",
@@ -1128,57 +749,17 @@
       },
       "pull_interval_minutes": {
         "default": 120,
-        "description": "定时拉取 RSS 的间隔，范围 15 分钟至 12 小时，默认 120 分钟。",
+        "description": "仅在用户请求新闻时尝试拉取；距该源上次拉取不足此间隔时直接读取缓存。范围 15 分钟至 12 小时，默认 120 分钟。",
         "maximum": 720,
         "minimum": 15,
-        "title": "拉取间隔（分钟）",
+        "title": "两次拉取最小间隔（分钟）",
         "type": "integer"
       },
       "send_enabled": {
-        "default": false,
-        "description": "默认为不发送。开启后按发送周期、发送时间和时区向接收者发送文章。",
-        "title": "启用定期发送",
+        "default": true,
+        "description": "关闭后相当于静音：用户请求新闻时不拉取、不发送文章；RSS 列表和昵称设置仍然可用。",
+        "title": "允许发送新闻",
         "type": "boolean"
-      },
-      "send_every_days": {
-        "default": 1,
-        "description": "每若干天发送一次，最长 7 天。例如填 1 表示每天，填 3 表示每三天。",
-        "maximum": 7,
-        "minimum": 1,
-        "title": "发送周期（天）",
-        "type": "integer"
-      },
-      "send_format": {
-        "default": "per_source",
-        "description": "决定一次发送里文章如何合并成消息；单条消息最多 3950 字。",
-        "enum": [
-          "merged",
-          "per_source",
-          "per_article"
-        ],
-        "option_labels": {
-          "merged": "消息-尽可能合并发送",
-          "per_article": "消息-分条发送",
-          "per_source": "消息-分订阅发送"
-        },
-        "title": "发送格式",
-        "type": "string"
-      },
-      "send_time": {
-        "default": "18:00",
-        "description": "24 小时制 HH:MM，例如 08:00、18:30。发送窗口为该时间起 5 分钟。",
-        "placeholder": "18:00",
-        "single_line": true,
-        "title": "发送时间",
-        "type": "string"
-      },
-      "timezone": {
-        "default": "Asia/Shanghai",
-        "description": "IANA 时区名，默认 Asia/Shanghai，例如 Europe/London。",
-        "placeholder": "Asia/Shanghai",
-        "single_line": true,
-        "title": "发送时区",
-        "type": "string"
       }
     },
     "title": "Config",
@@ -1195,11 +776,7 @@
           "per_destination_limit": 50,
           "per_source_limit": 10,
           "pull_interval_minutes": 120,
-          "send_enabled": true,
-          "send_every_days": 1,
-          "send_format": "per_source",
-          "send_time": "18:00",
-          "timezone": "Asia/Shanghai"
+          "send_enabled": true
         }
       },
       "id": "first-use",
@@ -1213,18 +790,14 @@
             "per_destination_limit": 50,
             "per_source_limit": 10,
             "pull_interval_minutes": 120,
-            "send_enabled": false,
-            "send_every_days": 1,
-            "send_format": "per_source",
-            "send_time": "18:00",
-            "timezone": "Asia/Shanghai"
+            "send_enabled": true
           },
           "form": "start",
           "target": "config",
-          "text": "在插件管理选择 NeoBot_RSS_News，打开配置表单。这里从公开默认值开始演示，真实配置不会被修改。订阅与接收者在“插件页面”中管理。"
+          "text": "在插件管理选择 NeoBot_RSS_News，打开配置表单。这里从公开默认值开始演示，真实配置不会被修改。订阅、简称和发送测试在“插件页面”中管理。"
         },
         {
-          "chapter": "开启定期发送",
+          "chapter": "设置静音开关",
           "example": {
             "cache_days": 10,
             "content_format": "title_link_lead",
@@ -1232,72 +805,26 @@
             "per_destination_limit": 50,
             "per_source_limit": 10,
             "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 1,
-            "send_format": "per_source",
-            "send_time": "18:00",
-            "timezone": "Asia/Shanghai"
+            "send_enabled": false
           },
           "form": "edit",
           "target": "config.send_enabled",
-          "text": "默认不发送。打开“启用定期发送”后，插件才会按发送周期和时间向启用的接收者发送文章；接收者仍需在插件页面添加。"
+          "text": "关闭“允许发送新闻”后，用户请求新闻时不会拉取或发送文章；RSS 列表和昵称设置仍然可用。"
         },
         {
-          "chapter": "设置发送周期",
+          "chapter": "设置拉取间隔",
           "example": {
             "cache_days": 10,
             "content_format": "title_link_lead",
             "message_interval_seconds": 2,
             "per_destination_limit": 50,
             "per_source_limit": 10,
-            "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 3,
-            "send_format": "per_source",
-            "send_time": "18:00",
-            "timezone": "Asia/Shanghai"
+            "pull_interval_minutes": 30,
+            "send_enabled": true
           },
           "form": "edit",
-          "target": "config.send_every_days",
-          "text": "填写每几天发送一次，范围 1 至 7 天。例如 1 表示每天，3 表示每三天。发送窗口从下方发送时间起 5 分钟。"
-        },
-        {
-          "chapter": "设置发送时间",
-          "example": {
-            "cache_days": 10,
-            "content_format": "title_link_lead",
-            "message_interval_seconds": 2,
-            "per_destination_limit": 50,
-            "per_source_limit": 10,
-            "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 3,
-            "send_format": "per_source",
-            "send_time": "08:00",
-            "timezone": "Asia/Shanghai"
-          },
-          "form": "edit",
-          "target": "config.send_time",
-          "text": "使用 24 小时制 HH:MM，例如 08:00 或 18:30。保存配置后，插件会按新时间重算每个接收者的下次发送时间。"
-        },
-        {
-          "chapter": "选择发送格式",
-          "example": {
-            "cache_days": 10,
-            "content_format": "title_link_lead",
-            "message_interval_seconds": 2,
-            "per_destination_limit": 50,
-            "per_source_limit": 10,
-            "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 3,
-            "send_format": "merged",
-            "send_time": "08:00",
-            "timezone": "Asia/Shanghai"
-          },
-          "form": "edit",
-          "target": "config.send_format",
-          "text": "“消息-分订阅发送”为默认值：每个订阅的文章合成一组消息。也可以选择尽可能合并或分条发送；单条消息最多 3950 字。"
+          "target": "config.pull_interval_minutes",
+          "text": "插件不再定时拉取，只在用户请求新闻时检查每个源的上次拉取时间。距上次拉取不足此间隔就直接读缓存。范围 15 分钟至 12 小时。"
         },
         {
           "chapter": "选择发送内容",
@@ -1308,18 +835,29 @@
             "per_destination_limit": 50,
             "per_source_limit": 10,
             "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 3,
-            "send_format": "merged",
-            "send_time": "08:00",
-            "timezone": "Asia/Shanghai"
+            "send_enabled": true
           },
           "form": "edit",
           "target": "config.content_format",
           "text": "默认发送标题、链接和 200 字开头。若源文章没有正文，涉及开头和正文的选项会退化为仅标题。"
         },
         {
-          "chapter": "设置数量上限",
+          "chapter": "设置每订阅篇数",
+          "example": {
+            "cache_days": 10,
+            "content_format": "title_body",
+            "message_interval_seconds": 2,
+            "per_destination_limit": 50,
+            "per_source_limit": 5,
+            "pull_interval_minutes": 120,
+            "send_enabled": true
+          },
+          "form": "edit",
+          "target": "config.per_source_limit",
+          "text": "每条订阅每次请求最多发送的文章数，默认 10 篇。"
+        },
+        {
+          "chapter": "设置用户接收上限",
           "example": {
             "cache_days": 10,
             "content_format": "title_body",
@@ -1327,49 +865,67 @@
             "per_destination_limit": 80,
             "per_source_limit": 5,
             "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 3,
-            "send_format": "merged",
-            "send_time": "08:00",
-            "timezone": "Asia/Shanghai"
+            "send_enabled": true
           },
           "form": "edit",
-          "target": "config.per_source_limit",
-          "text": "每订阅发送文章数默认 10 篇，每接收者文章总数默认 50 篇。若“订阅数 × 每订阅上限”大于接收总数，后面的订阅可能长期发不出文章，插件页面会显示警告。"
+          "target": "config.per_destination_limit",
+          "text": "单次“所有RSS新闻”请求最多接收的文章总数，默认 50 篇。若订阅数 × 每订阅上限超过此值，插件页面会提示饿死风险。"
+        },
+        {
+          "chapter": "设置缓存天数",
+          "example": {
+            "cache_days": 14,
+            "content_format": "title_body",
+            "message_interval_seconds": 2,
+            "per_destination_limit": 80,
+            "per_source_limit": 5,
+            "pull_interval_minutes": 120,
+            "send_enabled": true
+          },
+          "form": "edit",
+          "target": "config.cache_days",
+          "text": "文章在本地保留的天数，超期文章会在下一次请求时立即删除。"
+        },
+        {
+          "chapter": "设置消息间隔",
+          "example": {
+            "cache_days": 14,
+            "content_format": "title_body",
+            "message_interval_seconds": 3,
+            "per_destination_limit": 80,
+            "per_source_limit": 5,
+            "pull_interval_minutes": 120,
+            "send_enabled": true
+          },
+          "form": "edit",
+          "target": "config.message_interval_seconds",
+          "text": "“所有RSS新闻”连续发送多个订阅消息时的间隔，范围 1 至 5 秒。"
         },
         {
           "chapter": "核对配置",
           "example": {
-            "cache_days": 10,
+            "cache_days": 14,
             "content_format": "title_body",
-            "message_interval_seconds": 2,
+            "message_interval_seconds": 3,
             "per_destination_limit": 80,
             "per_source_limit": 5,
             "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 3,
-            "send_format": "merged",
-            "send_time": "08:00",
-            "timezone": "Asia/Shanghai"
+            "send_enabled": true
           },
           "form": "validate",
           "target": "config",
-          "text": "核对发送周期、时间、格式与数量上限。这里只演示本地检查；真实保存仍由服务端校验，错误时按字段提示修正。"
+          "text": "核对开关、拉取间隔、内容与数量上限。这里只演示本地检查；真实保存仍由服务端校验，错误时按字段提示修正。"
         },
         {
           "chapter": "保存配置",
           "example": {
-            "cache_days": 10,
+            "cache_days": 14,
             "content_format": "title_body",
-            "message_interval_seconds": 2,
+            "message_interval_seconds": 3,
             "per_destination_limit": 80,
             "per_source_limit": 5,
             "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 3,
-            "send_format": "merged",
-            "send_time": "08:00",
-            "timezone": "Asia/Shanghai"
+            "send_enabled": true
           },
           "form": "save",
           "target": "config",
@@ -1378,28 +934,44 @@
         {
           "chapter": "查看生效结果",
           "example": {
-            "cache_days": 10,
+            "cache_days": 14,
             "content_format": "title_body",
-            "message_interval_seconds": 2,
+            "message_interval_seconds": 3,
             "per_destination_limit": 80,
             "per_source_limit": 5,
             "pull_interval_minutes": 120,
-            "send_enabled": true,
-            "send_every_days": 3,
-            "send_format": "merged",
-            "send_time": "08:00",
-            "timezone": "Asia/Shanghai"
+            "send_enabled": true
           },
           "form": "saved",
           "target": "config",
-          "text": "真实保存后，打开“插件页面”添加 RSS 订阅与接收者 QQ。插件会立即拉取一次，之后按拉取间隔增量更新；首次使用请确认接收者 QQ 能收到私聊。"
+          "text": "真实保存后，在私聊发送“RSS列表”查看订阅名称和简称，再发送“RSS新闻 简称”或“所有RSS新闻”获取文章。"
+        },
+        {
+          "chapter": "发送第一条指令",
+          "command": {
+            "context": "在与机器人的私聊中发送",
+            "reply": "（按配置发送最近文章）",
+            "text": "/RSS新闻 中新网"
+          },
+          "target": "config",
+          "text": "在私聊发送“RSS新闻 中新网”。插件会检查该源是否到期拉取，然后读取缓存并发送最近文章；群聊中请求新闻只会得到仅支持私聊的提示。"
+        },
+        {
+          "chapter": "查看订阅列表",
+          "command": {
+            "context": "私聊或群聊中发送",
+            "reply": "中新网要闻导读（中新网）\nIT之家（之家）",
+            "text": "/RSS列表"
+          },
+          "target": "config",
+          "text": "“RSS列表”在私聊和群聊都可以使用，返回“源名称（源简称）”。"
         }
       ],
       "title": "从零配置 RSS 新闻"
     }
   ],
   "plugin": {
-    "description": "定期从 RSS 源获取新闻并私聊发送给接收者",
+    "description": "按聊天指令拉取 RSS 新闻并私聊发送",
     "name": "NeoBot_RSS_News",
     "version": "0.1.0"
   },
@@ -1411,9 +983,8 @@
         "status",
         "subscriptions",
         "subscription-form",
-        "destinations",
-        "destination-form",
         "send-test",
+        "commands",
         "articles"
       ],
       "entry": "web/index.html",

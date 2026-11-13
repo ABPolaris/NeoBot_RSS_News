@@ -1,9 +1,9 @@
-"""测试夹具：真实执行插件生命周期、SQLite 与动作注册。"""
+"""测试夹具：真实执行插件生命周期、SQLite、动作与指令注册。"""
 
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,7 @@ from NeoBot_RSS_News.storage import RssNewsStore
 
 
 class FakeAdapter:
-    """只替代宿主适配器；动作、存储和调度仍是真实实现。"""
+    """只替代宿主适配器；动作、存储和指令仍是真实实现。"""
 
     def __init__(self) -> None:
         self.messages: list[tuple[int, Any]] = []
@@ -37,6 +37,43 @@ class FakeAdapter:
         return {"status": "ok", "retcode": 0}
 
 
+class FakeCommands:
+    """只替代宿主命令表，保留真实 DSL 解析和权限声明。"""
+
+    available = True
+
+    def __init__(self) -> None:
+        self.items: dict[str, Any] = {}
+
+    def register(self, command: Any) -> None:
+        if command.name in self.items:
+            raise ValueError("命令已注册")
+        self.items[command.name] = command
+
+    def unregister(self, name: str) -> bool:
+        return self.items.pop(name, None) is not None
+
+    def unregister_all(self) -> None:
+        self.items.clear()
+
+
+@dataclass
+class FakeCommandContext:
+    kind: str
+    user_id: int
+    conv_id: str
+    command: Any
+    raw_args: str
+    message: dict[str, Any]
+    replies: list[str] = field(default_factory=list)
+
+    async def reply(self, text: str) -> None:
+        self.replies.append(text)
+
+    async def reply_plain(self, text: str) -> None:
+        self.replies.append(text)
+
+
 @dataclass
 class PluginEnvironment:
     loader: FilesystemPluginLoader
@@ -44,7 +81,12 @@ class PluginEnvironment:
     plugin: Any
     context: RuntimePluginContext
     adapter: FakeAdapter
+    commands: FakeCommands
     data_dir: Path
+
+    @property
+    def runtime(self) -> Any:
+        return sys.modules[self.loaded.module_names[0]]._runtime
 
     async def invoke(
         self,
@@ -59,6 +101,37 @@ class PluginEnvironment:
             self.plugin, action_id, payload or {}, invocation
         )
 
+    async def run_command(
+        self,
+        name: str,
+        raw_args: str = "",
+        *,
+        kind: str = "private",
+        user_id: int = 10001,
+        conv_id: str | None = None,
+    ) -> FakeCommandContext:
+        command = self.commands.items[name]
+        conversation = conv_id or str(user_id)
+        event: dict[str, Any] = {
+            "post_type": "message",
+            "message_type": kind,
+            "user_id": user_id,
+            "message": f"/{command.name} {raw_args}".strip(),
+            "raw_message": f"/{command.name} {raw_args}".strip(),
+        }
+        if kind == "group":
+            event["group_id"] = int(conversation)
+        context = FakeCommandContext(
+            kind=kind,
+            user_id=user_id,
+            conv_id=conversation,
+            command=command,
+            raw_args=raw_args,
+            message=event,
+        )
+        await command.handler(context)
+        return context
+
 
 @pytest.fixture
 async def plugin_env(tmp_path: Path) -> PluginEnvironment:
@@ -67,6 +140,7 @@ async def plugin_env(tmp_path: Path) -> PluginEnvironment:
     assert loaded is not None
     assert getattr(loaded, "plugin", None) is not None
     adapter = FakeAdapter()
+    commands = FakeCommands()
     context = RuntimePluginContext(
         plugin_name="NeoBot_RSS_News",
         plugin_dir=PROJECT,
@@ -74,7 +148,7 @@ async def plugin_env(tmp_path: Path) -> PluginEnvironment:
         config={},
         logger=None,
         adapter=adapter,
-        app_commands=None,
+        app_commands=commands,
     )
     await loaded.plugin.on_load(context)
     environment = PluginEnvironment(
@@ -83,6 +157,7 @@ async def plugin_env(tmp_path: Path) -> PluginEnvironment:
         plugin=loaded.plugin,
         context=context,
         adapter=adapter,
+        commands=commands,
         data_dir=tmp_path,
     )
     try:

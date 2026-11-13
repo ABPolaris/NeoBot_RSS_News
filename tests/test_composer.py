@@ -1,10 +1,9 @@
-"""消息组装：内容选项、合并/分订阅/分条、3950 字与空行规则。"""
+"""消息组装：内容选项、同订阅文章合并、3950 字与空行规则。"""
 
 from __future__ import annotations
 
 from NeoBot_RSS_News.composer import (
     MAX_MESSAGE_CHARS,
-    compose_messages,
     pack_messages,
     render_article,
     starvation_warning,
@@ -43,44 +42,28 @@ def test_content_formats() -> None:
 
 def test_content_formats_degrade_without_link_or_body() -> None:
     item = article(title="只有标题", link="", body="", summary="")
-    for content_format in ("title", "title_link", "title_lead", "title_body", "title_link_lead"):
+    for content_format in (
+        "title",
+        "title_link",
+        "title_lead",
+        "title_body",
+        "title_link_lead",
+    ):
         assert render_article(item, content_format) == "只有标题"
 
 
-def test_merged_format_joins_with_blank_line() -> None:
+def test_pack_joins_with_blank_line() -> None:
     first = article("a", title="A", link="", body="", summary="")
     second = article("b", title="B", link="", body="", summary="")
-    config = Config(send_format="merged", content_format="title")
-    messages = compose_messages([(1, [first, second])], config)
+    messages = pack_messages([first, second], "title")
     assert len(messages) == 1
     assert messages[0].text == "A\n\nB"
     assert [item.guid for item in messages[0].articles] == ["a", "b"]
 
 
-def test_per_source_keeps_sources_separate() -> None:
-    first = article("a", title="A", link="", body="", summary="")
-    second = article("b", title="B", link="", body="", summary="")
-    config = Config(send_format="per_source", content_format="title")
-    messages = compose_messages([(1, [first]), (2, [second])], config)
-    assert [message.text for message in messages] == ["A", "B"]
-
-
-def test_per_article_splits_each_article() -> None:
-    items = [
-        article("a", title="A", link="", body="", summary=""),
-        article("b", title="B", link="", body="", summary=""),
-    ]
-    config = Config(send_format="per_article", content_format="title")
-    messages = compose_messages([(1, items)], config)
-    assert [message.text for message in messages] == ["A", "B"]
-    assert all(len(message.articles) == 1 for message in messages)
-
-
 def test_long_article_is_truncated_to_limit() -> None:
     item = article(body="正" * 5000)
-    messages = compose_messages(
-        [(1, [item])], Config(send_format="per_article", content_format="title_body")
-    )
+    messages = pack_messages([item], "title_body")
     assert len(messages[0].text) == MAX_MESSAGE_CHARS
 
 
@@ -95,8 +78,7 @@ def test_pack_respects_limit_and_keeps_article_refs() -> None:
 def test_exact_limit_stays_single_message() -> None:
     title = "T"
     body = "正" * (MAX_MESSAGE_CHARS - len(title) - 1)
-    item = article(title=title, body=body)
-    messages = pack_messages([item], "title_body")
+    messages = pack_messages([article(title=title, body=body)], "title_body")
     assert len(messages) == 1
     assert len(messages[0].text) == MAX_MESSAGE_CHARS
 
