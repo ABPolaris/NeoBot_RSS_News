@@ -200,8 +200,8 @@ async def test_deliver_all_order_and_limits(store: RssNewsStore) -> None:
     )
     await instance.deliver_all(10001)
     assert sender.messages == [
-        (10001, "A2\n\nA1"),
-        (10001, "B2"),
+        (10001, "A：\nA2\n\nA1"),
+        (10001, "B：\nB2"),
     ]
     assert sleeps == [2.0]
 
@@ -236,8 +236,8 @@ async def test_deliver_all_pulls_only_due_sources(store: RssNewsStore) -> None:
     await instance.deliver_all(10001)
     assert fetcher.calls == ["https://due.example/rss"]
     assert sender.messages == [
-        (10001, "最近缓存"),
-        (10001, "到期文章"),
+        (10001, "最近：\n最近缓存"),
+        (10001, "到期：\n到期文章"),
     ]
 
 
@@ -255,7 +255,7 @@ async def test_deliver_all_cleanup_removes_expired(store: RssNewsStore) -> None:
     )
     instance, _, sender = delivery(store, Config(content_format="title"))
     await instance.deliver_all(10001)
-    assert sender.messages == [(10001, "新文章")]
+    assert sender.messages == [(10001, "A：\n新文章")]
     assert await store.article_count() == 1
 
 

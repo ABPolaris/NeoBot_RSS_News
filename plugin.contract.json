@@ -973,7 +973,7 @@
   "plugin": {
     "description": "按聊天指令拉取 RSS 新闻并私聊发送",
     "name": "NeoBot_RSS_News",
-    "version": "0.1.0"
+    "version": "0.3.0-a2"
   },
   "resources": [],
   "schema_version": 1,

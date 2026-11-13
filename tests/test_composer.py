@@ -90,3 +90,23 @@ def test_starvation_warning() -> None:
     assert "60" in warning and "50" in warning
     assert starvation_warning(config, 5) is None
     assert starvation_warning(Config(), 0) is None
+
+
+def test_prefix_appears_on_each_message_and_counts_toward_limit() -> None:
+    items = [
+        article("a", title="A", link="", body="", summary=""),
+        article("b", title="B", link="", body="", summary=""),
+    ]
+    messages = pack_messages(items, "title", prefix="源（简称）：")
+    assert messages[0].text == "源（简称）：\nA\n\nB"
+
+    long_items = [
+        article(str(index), title="T" * 30, link="", body="", summary="")
+        for index in range(3)
+    ]
+    messages = pack_messages(
+        long_items, "title", limit=40, prefix="源（简称）："
+    )
+    assert len(messages) == 3
+    assert all(message.text.startswith("源（简称）：\n") for message in messages)
+    assert all(len(message.text) <= 40 for message in messages)
