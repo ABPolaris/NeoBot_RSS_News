@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "version": "0.3.0-a2",
-  "created_at": "2026-11-13T17:35:21.176593436+08:00",
+  "version": "0.3.0-a3",
+  "created_at": "2026-11-17T23:35:58.293268244+08:00",
   "mode": "pr",
   "channel": "alpha",
-  "fingerprint": "sha256:534ba74ce272a840aa3f2adfe96cf6b4bd31d68098a7d9b7976ffba7445b68b8",
+  "fingerprint": "sha256:0d9c98bdd75dacb8d30fb48cfc8c71d25143d3987a5b922bf88594129932037b",
   "repo": {
     "host": "github.com",
     "owner": "ABPolaris",
@@ -16,25 +16,25 @@
       "uv run pytest -q"
     ],
     "skipped": true,
-    "at": "2026-11-13T17:35:21.176593627+08:00"
+    "at": "2026-11-17T23:35:58.293268555+08:00"
   },
   "packages": [
     {
       "name": "python@neobot-rss-news",
       "path": ".",
       "resolver": "python",
-      "current": "0.3.0-a1",
-      "next": "0.3.0-a2",
+      "current": "0.3.0-a2",
+      "next": "0.3.0-a3",
       "bump": "minor",
-      "tag": "v0.3.0a2",
+      "tag": "v0.3.0a3",
       "publish": false
     }
   ],
   "releases": [
     {
-      "version": "0.3.0-a2",
-      "tag": "v0.3.0a2",
-      "previous_tag": "v0.3.0a1",
+      "version": "0.3.0-a3",
+      "tag": "v0.3.0a3",
+      "previous_tag": "v0.3.0a2",
       "packages": [
         "python@neobot-rss-news"
       ],
@@ -64,7 +64,8 @@
       ],
       "body": "NeoBot_RSS_News 改为指令驱动的按需拉取与私聊发送：新增 /RSS新闻、/所有RSS新闻、/RSS列表、/设置昵称，取消定时发送、发送格式、接收者与已发送表，订阅增加唯一简称。",
       "commit": "ba55871a1f1929c7f49126c84e7f3fc0a3ebba39",
-      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/ba55871a1f1929c7f49126c84e7f3fc0a3ebba39"
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/ba55871a1f1929c7f49126c84e7f3fc0a3ebba39",
+      "author": "ABPolaris"
     },
     {
       "file": ".changes/qegg-changelog.md",
@@ -93,6 +94,19 @@
       "author": "ABPolaris"
     },
     {
+      "file": ".changes/random-news.md",
+      "type": "feat",
+      "scope": "News",
+      "bump": "patch",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "新增 `/随机RSS新闻`：按需拉取后随机发送一篇缓存文章，可指定一个订阅；私聊和群聊可用。",
+      "commit": "fc25c827fa324a7a5cdd0999c0a4af9ab55deab1",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/fc25c827fa324a7a5cdd0999c0a4af9ab55deab1",
+      "author": "ABPolaris"
+    },
+    {
       "file": ".changes/rss.md",
       "type": "chore",
       "scope": "News",
@@ -102,14 +116,16 @@
       ],
       "body": "\"所有RSS新闻\"的每条消息添加开头",
       "commit": "7371142e4fec6a872312463f44e0b515644aa06f",
-      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/7371142e4fec6a872312463f44e0b515644aa06f"
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/7371142e4fec6a872312463f44e0b515644aa06f",
+      "author": "ABPolaris"
     }
   ],
   "previous_changes": [
     ".changes/change.md",
     ".changes/initial.md",
     ".changes/qegg-changelog.md",
-    ".changes/quailegg.md"
+    ".changes/quailegg.md",
+    ".changes/rss.md"
   ],
   "qegg": {
     "version": "0.12.0"
