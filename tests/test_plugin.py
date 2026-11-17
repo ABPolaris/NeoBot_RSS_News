@@ -11,7 +11,7 @@ from NeoBot_RSS_News.config import Config
 def test_plugin_identity(plugin_env: Any) -> None:
     plugin = plugin_env.plugin
     assert plugin.name == "NeoBot_RSS_News"
-    assert plugin.version == "0.3.0-a1"
+    assert plugin.version == "0.3.0-a3"
     assert plugin.config_model is not None
     assert plugin.config_model.__name__ == "Config"
 
@@ -57,11 +57,13 @@ def test_chat_commands_are_registered(plugin_env: Any) -> None:
     assert set(commands) == {
         "RSS新闻",
         "所有RSS新闻",
+        "随机RSS新闻",
         "RSS列表",
         "设置昵称",
     }
     assert commands["RSS新闻"].permission == 0
     assert commands["所有RSS新闻"].permission == 0
+    assert commands["随机RSS新闻"].permission == 0
     assert commands["RSS列表"].permission == 0
     assert commands["设置昵称"].permission == 1
 

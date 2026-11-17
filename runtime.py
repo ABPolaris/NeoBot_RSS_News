@@ -11,7 +11,7 @@ from .config import Config, coerce_config
 from .delivery import NewsDelivery
 from .fetch import RssFetcher
 from .presets import PRESETS
-from .sender import PrivateMessageSender
+from .sender import MessageSender
 from .storage import RssNewsStore
 
 DATABASE_NAME = "rss_news.db"
@@ -74,7 +74,7 @@ class RssNewsRuntime:
         self.logger = logger
         self.store: RssNewsStore | None = None
         self.fetcher: RssFetcher | None = None
-        self.sender: PrivateMessageSender | None = None
+        self.sender: MessageSender | None = None
         self.delivery: NewsDelivery | None = None
         self._consumer: RssNewsConfigConsumer | None = None
         self._consumer_control: Any | None = None
@@ -96,7 +96,7 @@ class RssNewsRuntime:
             await store.init_presets(PRESETS, now)
             await store.cleanup_articles(now, self.config.cache_days)
             fetcher = RssFetcher()
-            sender = PrivateMessageSender(self.ctx)
+            sender = MessageSender(self.ctx)
             delivery = NewsDelivery(
                 store,
                 fetcher,

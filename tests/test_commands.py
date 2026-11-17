@@ -78,6 +78,87 @@ async def test_group_news_requests_only_reply_private_only(plugin_env: Any) -> N
     assert plugin_env.adapter.messages == []
 
 
+async def test_random_news_private_and_group(plugin_env: Any) -> None:
+    await seed(
+        plugin_env,
+        {
+            1: [entry("one", "中新网文章")],
+            2: [entry("two", "IT之家文章")],
+        },
+    )
+    await set_config(plugin_env, content_format="title")
+
+    private = await plugin_env.run_command(
+        "随机RSS新闻", user_id=123456
+    )
+    await settle()
+    assert private.replies == []
+    assert len(plugin_env.adapter.messages) == 1
+    assert plugin_env.adapter.messages[0][0] == 123456
+    assert plugin_env.adapter.messages[0][1] in {
+        "中新网文章",
+        "IT之家文章",
+    }
+
+    group = await plugin_env.run_command(
+        "随机RSS新闻",
+        "之家",
+        kind="group",
+        conv_id="983752344",
+    )
+    await settle()
+    assert group.replies == []
+    assert plugin_env.adapter.group_messages == [
+        ("983752344", "IT之家文章")
+    ]
+
+
+async def test_random_news_rejects_invalid_source_without_sending(
+    plugin_env: Any,
+) -> None:
+    await seed(plugin_env, {1: [entry("one", "中新网文章")]})
+    await set_config(plugin_env, content_format="title")
+    multiple = await plugin_env.run_command(
+        "随机RSS新闻", "中新网 之家", user_id=123456
+    )
+    assert multiple.replies == [MULTIPLE_SOURCES]
+    missing = await plugin_env.run_command(
+        "随机RSS新闻", "不存在", user_id=123456
+    )
+    assert missing.replies == [NOT_FOUND.format("不存在")]
+    group_missing = await plugin_env.run_command(
+        "随机RSS新闻", "不存在", kind="group", conv_id="983752344"
+    )
+    assert group_missing.replies == [NOT_FOUND.format("不存在")]
+    await settle()
+    assert plugin_env.adapter.messages == []
+    assert plugin_env.adapter.group_messages == []
+
+
+async def test_random_news_pulls_due_source(plugin_env: Any) -> None:
+    store = RssNewsStore(plugin_env.data_dir / "databases" / "rss_news.db")
+    await store.open()
+    try:
+        subscriptions = await store.list_subscriptions()
+        await store.set_pull_at(
+            subscriptions[0].id, int(time.time()) - 7200
+        )
+        await store.set_pull_at(subscriptions[1].id, int(time.time()))
+    finally:
+        await store.close()
+    fetcher = FakeFetcher([entry("fresh", "拉取的新文章")])
+    plugin_env.runtime.delivery.fetcher = fetcher
+    await set_config(plugin_env, content_format="title")
+    await plugin_env.run_command(
+        "随机RSS新闻", "中新网", user_id=123456
+    )
+    await settle()
+    assert fetcher.calls == [
+        "https://www.chinanews.com.cn/rss/importnews.xml"
+    ]
+    assert plugin_env.adapter.messages == [(123456, "拉取的新文章")]
+
+
 async def test_private_default_source_is_lowest_weight(plugin_env: Any) -> None:
     await seed(
         plugin_env,

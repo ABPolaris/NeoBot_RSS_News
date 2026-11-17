@@ -608,24 +608,31 @@ class RssNewsStore:
             )
             return [_row_to_article(row) for row in await cursor.fetchall()]
 
-    async def random_article(self) -> tuple[Article, str] | None:
-        """随机取一篇仍可用的缓存文章，只读，不改变任何记录。"""
+    async def random_article(
+        self, source_id: int | None = None
+    ) -> tuple[Article, str] | None:
+        """随机取一篇仍可用的缓存文章，只读，不改变任何记录。
 
-        async with self._session() as db:
-            cursor = await db.execute(
-                """
-                SELECT a.*, s.name AS source_name
-                FROM articles a
-                JOIN subscriptions s ON s.id = a.source_id
-                WHERE (
-                    COALESCE(a.title, '') != ''
-                    OR COALESCE(a.link, '') != ''
-                    OR COALESCE(a.body, '') != ''
-                )
-                ORDER BY RANDOM()
-                LIMIT 1
-                """
+        ``source_id`` 为空时从全部订阅中抽取；指定时只从该订阅抽取。
+        """
+
+        query = """
+            SELECT a.*, s.name AS source_name
+            FROM articles a
+            JOIN subscriptions s ON s.id = a.source_id
+            WHERE (
+                COALESCE(a.title, '') != ''
+                OR COALESCE(a.link, '') != ''
+                OR COALESCE(a.body, '') != ''
             )
+        """
+        params: tuple[Any, ...] = ()
+        if source_id is not None:
+            query += " AND a.source_id = ?"
+            params = (int(source_id),)
+        query += " ORDER BY RANDOM() LIMIT 1"
+        async with self._session() as db:
+            cursor = await db.execute(query, params)
             row = await cursor.fetchone()
             if row is None:
                 return None

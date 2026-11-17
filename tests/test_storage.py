@@ -171,14 +171,26 @@ async def test_recent_and_random_articles(store: RssNewsStore) -> None:
     assert [item.guid for item in recent] == ["g2", "g1"]
     assert await store.recent_articles(subscription.id, 1) == [recent[0]]
 
+    other = await store.add_subscription(
+        "B", "https://b.example/rss", None, None, now
+    )
+    await add_entry(store, other.id, "g3", now, title="其他源")
+
     picks = set()
     for _ in range(20):
         picked = await store.random_article()
         assert picked is not None
         article, source_name = picked
-        assert source_name == "A"
+        assert source_name in {"A", "B"}
         picks.add(article.guid)
-    assert picks <= {"g1", "g2"}
+    assert picks <= {"g1", "g2", "g3"}
+
+    for _ in range(20):
+        picked = await store.random_article(subscription.id)
+        assert picked is not None
+        article, source_name = picked
+        assert source_name == "A"
+        assert article.guid in {"g1", "g2"}
 
 
 async def test_pull_at_and_latest_pull(store: RssNewsStore) -> None:

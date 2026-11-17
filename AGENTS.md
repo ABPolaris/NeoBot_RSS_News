@@ -5,12 +5,13 @@
 ## 结构约束
 
 - 入口是 `__init__.py` 导出的 `plugin` 实例，不使用旧的 setup、Matcher 或 on_command API。
-- 聊天入口在 `commands.py`：`/RSS新闻`、`/所有RSS新闻`、`/RSS列表`、`/设置昵称`。新闻类指令只能私聊，群聊只返回“新闻仅支持在私聊中查看。”；`设置昵称` 使用宿主 `permission=1`，群聊可用。
+- 聊天入口在 `commands.py`：`/RSS新闻`、`/所有RSS新闻`、`/随机RSS新闻`、`/RSS列表`、`/设置昵称`。`/RSS新闻` 与 `/所有RSS新闻` 只能私聊，群聊返回“新闻仅支持在私聊中查看。”；`/随机RSS新闻` 例外，私聊和群聊都直接发送随机文章。`设置昵称` 使用宿主 `permission=1`，群聊可用。
 - 面板业务只通过 `actions.py` 声明的 `plugin.action` 访问。动作权限：读取用 `read`，修改用 `manage`。
 - 插件**没有定时器、后台轮询、发送窗口、接收者表或已发送表**。拉取只发生在聊天指令触发的 `delivery.py` 中，不要重新引入 scheduler/next_send 结构。
-- 拉取按源检查 `pull_at` 与 `pull_interval_seconds`；`/RSS新闻` 只检查该源，`/所有RSS新闻` 检查全部到期源。并发上限 4，重试/超时/SSRF 规则沿用 `fetch.py`、`net.py`。
+- 拉取按源检查 `pull_at` 与 `pull_interval_seconds`；`/RSS新闻` 只检查该源，`/所有RSS新闻` 和未指定源的 `/随机RSS新闻` 检查全部到期源，指定源的 `/随机RSS新闻` 只检查该源。并发上限 4，重试/超时/SSRF 规则沿用 `fetch.py`、`net.py`。
 - 数据库访问只在 `storage.py` 中做；不要绕过 `RssNewsStore` 直接拼 SQL。`destinations`/`sent` 已删除，`articles.deleted_at` 已移除，超期文章直接删除。
 - 订阅简称（nickname）允许为空但不可重复；昵称唯一性由存储层检查，命令和面板都必须给出中文错误。
+- `/随机RSS新闻` 只随机发送一篇：先按拉取规则刷新，再 `store.random_article(source_id)`；参数有误时只回复错误，不拉取、不发送。群聊目标使用 `command_context.conv_id`，不要转成 `int`（官方通道是 openid 字符串）。
 - `system.send_test` 必须保持只读：只允许 `store.random_article()` 读取缓存，直接发送；不要写入文章、订阅或配置。
 - 后台发送任务只用 `ctx.create_task` 托管；停止时由插件生命周期取消，不要自己保留未托管的长时间任务。
 

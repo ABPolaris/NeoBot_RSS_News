@@ -43,9 +43,13 @@ class FakeFetcher:
 class FakeSender:
     def __init__(self):
         self.messages: list[tuple[int, str]] = []
+        self.group_messages: list[tuple[str, str]] = []
 
     async def send_text(self, user_id: int, text: str) -> None:
         self.messages.append((int(user_id), text))
+
+    async def send_group(self, group_id: int | str, text: str) -> None:
+        self.group_messages.append((str(group_id), text))
 
 
 def entry(guid: str, title: str, pubdate: int = NOW) -> FeedEntry:
@@ -273,3 +277,109 @@ async def test_pull_concurrency_is_capped(store: RssNewsStore) -> None:
     instance, _, _ = delivery(store, Config(), fetcher=fetcher)
     await instance.deliver_all(10001)
     assert 2 <= fetcher.max_active <= 4
+
+
+async def test_deliver_random_filters_source_and_sends_group(
+    store: RssNewsStore,
+) -> None:
+    source_a = await seed(
+        store,
+        "A",
+        "https://a.example/rss",
+        1,
+        [entry("a1", "A文章")],
+        pull_at=NOW,
+    )
+    source_b = await seed(
+        store,
+        "B",
+        "https://b.example/rss",
+        2,
+        [entry("b1", "B文章")],
+        pull_at=NOW,
+    )
+    instance, fetcher, sender = delivery(
+        store, Config(content_format="title")
+    )
+    await instance.deliver_random("private", 10001, source_a)
+    await instance.deliver_random("group", "20001", source_b)
+    assert fetcher.calls == []
+    assert sender.messages == [(10001, "A文章")]
+    assert sender.group_messages == [("20001", "B文章")]
+
+
+async def test_deliver_random_all_sources_picks_cached_article(
+    store: RssNewsStore,
+) -> None:
+    await seed(
+        store,
+        "A",
+        "https://a.example/rss",
+        1,
+        [entry("a1", "A文章")],
+        pull_at=NOW,
+    )
+    await seed(
+        store,
+        "B",
+        "https://b.example/rss",
+        2,
+        [entry("b1", "B文章")],
+        pull_at=NOW,
+    )
+    instance, _, sender = delivery(
+        store, Config(content_format="title")
+    )
+    await instance.deliver_random("private", 10001)
+    assert sender.messages in (
+        [(10001, "A文章")],
+        [(10001, "B文章")],
+    )
+
+
+async def test_deliver_random_pulls_only_selected_source(
+    store: RssNewsStore,
+) -> None:
+    source_a = await seed(
+        store,
+        "A",
+        "https://a.example/rss",
+        1,
+        [],
+        pull_at=NOW - 7200,
+    )
+    await seed(
+        store,
+        "B",
+        "https://b.example/rss",
+        2,
+        [entry("b1", "B缓存")],
+        pull_at=NOW,
+    )
+    fetcher = FakeFetcher([entry("a1", "A新文章")])
+    instance, _, sender = delivery(
+        store, Config(content_format="title"), fetcher=fetcher
+    )
+    await instance.deliver_random("private", 10001, source_a)
+    assert fetcher.calls == ["https://a.example/rss"]
+    assert sender.messages == [(10001, "A新文章")]
+
+
+async def test_deliver_random_without_articles_or_source(
+    store: RssNewsStore,
+) -> None:
+    source_a = await seed(
+        store,
+        "A",
+        "https://a.example/rss",
+        1,
+        [],
+        pull_at=NOW,
+    )
+    instance, fetcher, sender = delivery(store, Config())
+    await instance.deliver_random("private", 10001, source_a)
+    assert sender.messages == [(10001, NO_ARTICLES)]
+
+    await instance.deliver_random("group", "20001", 9999)
+    assert sender.group_messages == [("20001", SOURCE_MISSING)]
+    assert fetcher.calls == []

@@ -1,4 +1,4 @@
-"""聊天指令：RSS新闻 / 所有RSS新闻 / RSS列表 / 设置昵称。"""
+"""聊天指令：RSS新闻 / 所有RSS新闻 / 随机RSS新闻 / RSS列表 / 设置昵称。"""
 
 from __future__ import annotations
 
@@ -137,6 +137,51 @@ def register(plugin: Plugin) -> None:
             ctx.create_task(
                 runtime.delivery.deliver_all(command_context.user_id),
                 name="rss-news-all",
+            )
+        except Exception:  # noqa: BLE001 - 插件正在停止等边界
+            await command_context.reply_plain("插件正在停止，请稍后重试。")
+
+    @plugin.command(
+        "随机RSS新闻 [source:rest]",
+        permission=0,
+        description="随机发送一条缓存文章；可指定一个 RSS 源，私聊和群聊可用",
+    )
+    async def random_rss_news(
+        source: str | None, command_context, ctx
+    ) -> None:
+        runtime = _current()
+        if runtime is None or runtime.store is None:
+            await command_context.reply_plain(NOT_READY)
+            return
+        if not runtime.config.send_enabled:
+            await command_context.reply_plain(MUTED)
+            return
+        subscriptions = await runtime.store.list_subscriptions()
+        if not subscriptions:
+            await command_context.reply_plain(NO_SUBSCRIPTIONS)
+            return
+        query = (source or "").strip()
+        source_id: int | None = None
+        if query:
+            target, error = _find_source(subscriptions, query)
+            if error is not None or target is None:
+                await command_context.reply_plain(
+                    error or NOT_FOUND.format(query)
+                )
+                return
+            source_id = target.id
+        target_kind = command_context.kind
+        target_id = (
+            command_context.conv_id
+            if target_kind == "group"
+            else command_context.user_id
+        )
+        try:
+            ctx.create_task(
+                runtime.delivery.deliver_random(
+                    target_kind, target_id, source_id
+                ),
+                name=f"rss-random-{source_id or 'all'}",
             )
         except Exception:  # noqa: BLE001 - 插件正在停止等边界
             await command_context.reply_plain("插件正在停止，请稍后重试。")

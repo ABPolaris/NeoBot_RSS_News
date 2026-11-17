@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from .composer import MessageBundle, pack_messages
 from .config import Config
 from .models import Article, Subscription
-from .sender import PrivateMessageSender
+from .sender import MessageSender
 from .storage import RssNewsStore
 
 PULL_CONCURRENCY = 4
@@ -30,7 +30,7 @@ class NewsDelivery:
         self,
         store: RssNewsStore,
         fetcher: FeedFetcher,
-        sender: PrivateMessageSender,
+        sender: MessageSender,
         config_provider: Callable[[], Config],
         *,
         logger: Any | None = None,
@@ -64,7 +64,9 @@ class NewsDelivery:
             await self.sender.send_text(user_id, NO_ARTICLES)
             return
         await self._send_bundles(
-            user_id, pack_messages(articles, config.content_format)
+            "private",
+            user_id,
+            pack_messages(articles, config.content_format),
         )
 
     async def deliver_all(self, user_id: int) -> None:
@@ -99,21 +101,71 @@ class NewsDelivery:
             bundles.extend(
                 pack_messages(articles, config.content_format, prefix=prefix)
             )
-        await self._send_bundles(user_id, bundles)
+        await self._send_bundles("private", user_id, bundles)
 
-    async def _send_bundles(self, user_id: int, bundles: list[MessageBundle]) -> None:
+    async def deliver_random(
+        self,
+        target_kind: str,
+        target_id: int | str,
+        source_id: int | None = None,
+    ) -> None:
+        """按需拉取后随机发送一篇缓存文章。
+
+        ``source_id`` 为空时从全部订阅中抽取，否则只抽取指定订阅。
+        私聊和群聊都通过 ``target_kind`` 路由；群聊仅此指令例外。
+        """
+
+        if source_id is not None:
+            source = await self.store.get_subscription(source_id)
+            if source is None:
+                await self._send_text(
+                    target_kind, target_id, SOURCE_MISSING
+                )
+                return
+        now = int(self._clock())
+        await self._refresh(
+            [source_id] if source_id is not None else None, now
+        )
+        await self._cleanup(now)
+        config = self._config()
+        picked = await self.store.random_article(source_id)
+        if picked is None:
+            await self._send_text(target_kind, target_id, NO_ARTICLES)
+            return
+        article, _source_name = picked
+        await self._send_bundles(
+            target_kind,
+            target_id,
+            pack_messages([article], config.content_format),
+        )
+
+    async def _send_text(
+        self, target_kind: str, target_id: int | str, text: str
+    ) -> None:
+        if target_kind == "group":
+            await self.sender.send_group(target_id, text)
+        else:
+            await self.sender.send_text(target_id, text)
+
+    async def _send_bundles(
+        self,
+        target_kind: str,
+        target_id: int | str,
+        bundles: list[MessageBundle],
+    ) -> None:
         config = self._config()
         for index, bundle in enumerate(bundles):
             if index > 0:
                 await self._sleep(float(config.message_interval_seconds))
             try:
-                await self.sender.send_text(user_id, bundle.text)
+                await self._send_text(target_kind, target_id, bundle.text)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - 适配器可抛任意异常
                 self._log(
                     "warning",
-                    f"向 {user_id} 发送新闻失败：{type(exc).__name__}",
+                    f"向 {target_kind}:{target_id} 发送新闻失败："
+                    f"{type(exc).__name__}",
                 )
                 break
 

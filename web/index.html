@@ -15,7 +15,7 @@
         <div>
           <h1>RSS 订阅管理</h1>
           <p class="nb-help">
-            插件不再定时发送：只有用户在私聊中请求新闻时才按需拉取并发送。
+            插件不再定时发送：只有用户请求新闻时才按需拉取并发送；随机RSS新闻也可在群聊使用。
             订阅最多 7 条；停用等同于删除。
           </p>
         </div>
@@ -192,7 +192,7 @@
       <section id="commands" class="nb-section form-card">
         <div class="section-heading">
           <h2>可用指令</h2>
-          <span class="muted">新闻类指令仅支持私聊</span>
+          <span class="muted">RSS新闻 / 所有RSS新闻仅支持私聊；随机RSS新闻群聊可用</span>
         </div>
         <ul class="command-list">
           <li>
@@ -202,6 +202,10 @@
           <li>
             <code>/所有RSS新闻</code>
             <span>按权重顺序获取所有源的文章，受用户接收文章最大数量限制。</span>
+          </li>
+          <li>
+            <code>/随机RSS新闻 [源名称/简称]</code>
+            <span>随机发送一篇缓存文章；省略参数时从全部源抽取，私聊和群聊都可用。</span>
           </li>
           <li>
             <code>/RSS列表</code>

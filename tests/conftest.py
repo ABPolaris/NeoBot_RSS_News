@@ -25,6 +25,7 @@ class FakeAdapter:
 
     def __init__(self) -> None:
         self.messages: list[tuple[int, Any]] = []
+        self.group_messages: list[tuple[str, Any]] = []
         self.fail = False
 
     async def send_private_msg(self, user_id: int, message: Any, **_kwargs: Any) -> Any:
@@ -34,6 +35,14 @@ class FakeAdapter:
         return {"status": "ok", "retcode": 0}
 
     async def send(self, conversation: Any, message: Any, **_kwargs: Any) -> Any:
+        if self.fail:
+            raise RuntimeError("synthetic transport down")
+        kind = getattr(conversation, "kind", "")
+        conversation_id = str(getattr(conversation, "id", ""))
+        if kind == "private":
+            self.messages.append((int(conversation_id), message))
+        elif kind == "group":
+            self.group_messages.append((conversation_id, message))
         return {"status": "ok", "retcode": 0}
 
 
