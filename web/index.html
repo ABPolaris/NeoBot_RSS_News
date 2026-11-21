@@ -15,8 +15,8 @@
         <div>
           <h1>RSS 订阅管理</h1>
           <p class="nb-help">
-            插件不再定时发送：只有用户请求新闻时才按需拉取并发送；随机RSS新闻也可在群聊使用。
-            订阅最多 7 条；停用等同于删除。
+            插件不再定时发送：只有用户在私聊中请求新闻时才按需拉取并发送。
+            订阅最多 7 条；名称唯一且不能包含空格。
           </p>
         </div>
         <div class="nb-actions">
@@ -151,6 +151,7 @@
             <div class="nb-field">
               <label for="sub-name">名称</label>
               <input id="sub-name" name="name" maxlength="100" placeholder="例如 IT之家" />
+              <p class="nb-help">名称唯一，不能包含空格；首尾空白会自动去除。</p>
             </div>
             <div class="nb-field">
               <label for="sub-nickname">简称（昵称）</label>
@@ -192,7 +193,7 @@
       <section id="commands" class="nb-section form-card">
         <div class="section-heading">
           <h2>可用指令</h2>
-          <span class="muted">RSS新闻 / 所有RSS新闻仅支持私聊；随机RSS新闻群聊可用</span>
+          <span class="muted">新闻类指令仅支持私聊</span>
         </div>
         <ul class="command-list">
           <li>
@@ -205,7 +206,7 @@
           </li>
           <li>
             <code>/随机RSS新闻 [源名称/简称]</code>
-            <span>随机发送一篇缓存文章；省略参数时从全部源抽取，私聊和群聊都可用。</span>
+            <span>随机发送一篇缓存文章；省略参数时从全部源抽取，仅支持私聊。</span>
           </li>
           <li>
             <code>/RSS列表</code>

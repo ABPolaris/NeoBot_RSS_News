@@ -52,24 +52,17 @@ def _find_source(
 def _find_by_full_name(
     subscriptions: list[Subscription], args: str
 ) -> tuple[Subscription | None, str]:
-    """把“订阅全称 昵称”拆开；订阅全称允许包含空格。"""
+    """把“订阅全称 昵称”拆开；名称不含空白，第一段即全称。"""
 
-    matches = [
-        subscription
-        for subscription in subscriptions
-        if args == subscription.name
-        or args.startswith(subscription.name + " ")
-    ]
-    if not matches:
+    parts = args.split(maxsplit=1)
+    if not parts:
         return None, ""
-    longest = max(len(subscription.name) for subscription in matches)
-    candidates = [
-        subscription for subscription in matches if len(subscription.name) == longest
-    ]
-    if len(candidates) != 1:
-        return None, ""
-    target = candidates[0]
-    return target, args[len(target.name) :].strip()
+    name = parts[0]
+    nickname = parts[1].strip() if len(parts) > 1 else ""
+    for subscription in subscriptions:
+        if subscription.name == name:
+            return subscription, nickname
+    return None, ""
 
 
 def _format_sources(subscriptions: list[Subscription]) -> str:
@@ -144,11 +137,14 @@ def register(plugin: Plugin) -> None:
     @plugin.command(
         "随机RSS新闻 [source:rest]",
         permission=0,
-        description="随机发送一条缓存文章；可指定一个 RSS 源，私聊和群聊可用",
+        description="随机发送一条缓存文章；可指定一个 RSS 源，仅私聊",
     )
     async def random_rss_news(
         source: str | None, command_context, ctx
     ) -> None:
+        if command_context.kind == "group":
+            await command_context.reply_plain(GROUP_ONLY)
+            return
         runtime = _current()
         if runtime is None or runtime.store is None:
             await command_context.reply_plain(NOT_READY)
@@ -170,16 +166,10 @@ def register(plugin: Plugin) -> None:
                 )
                 return
             source_id = target.id
-        target_kind = command_context.kind
-        target_id = (
-            command_context.conv_id
-            if target_kind == "group"
-            else command_context.user_id
-        )
         try:
             ctx.create_task(
                 runtime.delivery.deliver_random(
-                    target_kind, target_id, source_id
+                    "private", command_context.user_id, source_id
                 ),
                 name=f"rss-random-{source_id or 'all'}",
             )

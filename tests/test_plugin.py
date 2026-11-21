@@ -11,7 +11,7 @@ from NeoBot_RSS_News.config import Config
 def test_plugin_identity(plugin_env: Any) -> None:
     plugin = plugin_env.plugin
     assert plugin.name == "NeoBot_RSS_News"
-    assert plugin.version == "0.3.0-a3"
+    assert plugin.version == "0.3.0-a4"
     assert plugin.config_model is not None
     assert plugin.config_model.__name__ == "Config"
 

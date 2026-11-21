@@ -64,13 +64,14 @@ def test_command_permissions(plugin_env: Any) -> None:
     commands = plugin_env.commands.items
     assert commands["RSS新闻"].permission == 0
     assert commands["所有RSS新闻"].permission == 0
+    assert commands["随机RSS新闻"].permission == 0
     assert commands["RSS列表"].permission == 0
     assert commands["设置昵称"].permission == 1
 
 
 async def test_group_news_requests_only_reply_private_only(plugin_env: Any) -> None:
     await set_config(plugin_env, content_format="title")
-    for name in ("RSS新闻", "所有RSS新闻"):
+    for name in ("RSS新闻", "所有RSS新闻", "随机RSS新闻"):
         context = await plugin_env.run_command(
             name, "中新网", kind="group", conv_id="983752344"
         )
@@ -78,7 +79,7 @@ async def test_group_news_requests_only_reply_private_only(plugin_env: Any) -> N
     assert plugin_env.adapter.messages == []
 
 
-async def test_random_news_private_and_group(plugin_env: Any) -> None:
+async def test_random_news_private(plugin_env: Any) -> None:
     await seed(
         plugin_env,
         {
@@ -99,18 +100,7 @@ async def test_random_news_private_and_group(plugin_env: Any) -> None:
         "中新网文章",
         "IT之家文章",
     }
-
-    group = await plugin_env.run_command(
-        "随机RSS新闻",
-        "之家",
-        kind="group",
-        conv_id="983752344",
-    )
-    await settle()
-    assert group.replies == []
-    assert plugin_env.adapter.group_messages == [
-        ("983752344", "IT之家文章")
-    ]
+    assert plugin_env.adapter.group_messages == []
 
 
 async def test_random_news_rejects_invalid_source_without_sending(
@@ -129,7 +119,7 @@ async def test_random_news_rejects_invalid_source_without_sending(
     group_missing = await plugin_env.run_command(
         "随机RSS新闻", "不存在", kind="group", conv_id="983752344"
     )
-    assert group_missing.replies == [NOT_FOUND.format("不存在")]
+    assert group_missing.replies == [GROUP_ONLY]
     await settle()
     assert plugin_env.adapter.messages == []
     assert plugin_env.adapter.group_messages == []
@@ -281,14 +271,14 @@ async def test_rss_list_private_and_group(plugin_env: Any) -> None:
 
 async def test_set_nickname_set_duplicate_clear(plugin_env: Any) -> None:
     context = await plugin_env.run_command(
-        "设置昵称", "中新网要闻导读 新简称", user_id=123456
+        "设置昵称", "中新网要闻导读 新 简称", user_id=123456
     )
-    assert "新简称" in context.replies[0]
+    assert "新 简称" in context.replies[0]
     listed = await plugin_env.run_command("RSS列表")
-    assert "中新网要闻导读（新简称）" in listed.replies[0]
+    assert "中新网要闻导读（新 简称）" in listed.replies[0]
 
     duplicate = await plugin_env.run_command(
-        "设置昵称", "IT之家 新简称", user_id=123456
+        "设置昵称", "IT之家 新 简称", user_id=123456
     )
     assert "已被订阅" in duplicate.replies[0]
     listed = await plugin_env.run_command("RSS列表")

@@ -47,8 +47,10 @@ def evaluate(title: str, linked_count: int) -> tuple[bool, str]:
     if linked_count <= 0:
         return (
             False,
-            "fix PR 必须在描述里用 Closes #NN 关联对应的 bug issue；"
-            "如果 issue 还没创建，请先创建 issue 再改 PR 描述。",
+            (
+                "fix PR 必须在描述里用 Closes #NN 关联对应的 bug issue；"
+                "如果 issue 还没创建，请先创建 issue 再改 PR 描述。"
+            ),
         )
     return True, f"fix PR 已关联 {linked_count} 个 issue。"
 

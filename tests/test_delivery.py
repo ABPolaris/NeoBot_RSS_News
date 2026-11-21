@@ -160,6 +160,31 @@ async def test_deliver_one_pull_failure_still_sends_cache(store: RssNewsStore) -
     await instance.deliver_one(source_id, 10001)
     assert fetcher.calls == ["https://a.example/rss"]
     assert sender.messages == [(10001, "缓存文章")]
+    subscription = await store.get_subscription(source_id)
+    assert subscription is not None and subscription.pull_at == NOW - 7200
+
+
+async def test_pull_failure_is_retried_on_next_request(store: RssNewsStore) -> None:
+    source_id = await seed(
+        store, "A", "https://a.example/rss", 1, [], pull_at=NOW - 7200
+    )
+    fetcher = FakeFetcher(fail=True)
+    instance, _, sender = delivery(
+        store, Config(content_format="title"), fetcher=fetcher
+    )
+    await instance.deliver_one(source_id, 10001)
+    assert sender.messages == [(10001, NO_ARTICLES)]
+    assert fetcher.calls == ["https://a.example/rss"]
+    subscription = await store.get_subscription(source_id)
+    assert subscription is not None and subscription.pull_at == NOW - 7200
+
+    fetcher.fail = False
+    fetcher.entries = [entry("g1", "恢复后的文章")]
+    await instance.deliver_one(source_id, 10002)
+    assert fetcher.calls == ["https://a.example/rss", "https://a.example/rss"]
+    assert sender.messages[-1] == (10002, "恢复后的文章")
+    subscription = await store.get_subscription(source_id)
+    assert subscription is not None and subscription.pull_at == NOW
 
 
 async def test_deliver_one_without_articles_or_source(store: RssNewsStore) -> None:

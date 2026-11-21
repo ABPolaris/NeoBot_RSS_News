@@ -86,9 +86,9 @@ async def test_subscription_crud_with_nickname(plugin_env: Any) -> None:
 
     updated = await plugin_env.invoke(
         "subscriptions.update",
-        {"id": item["id"], "name": "Example 2", "nickname": "新示例", "weight": 5},
+        {"id": item["id"], "name": "Example2", "nickname": "新示例", "weight": 5},
     )
-    assert updated["item"]["name"] == "Example 2"
+    assert updated["item"]["name"] == "Example2"
     assert updated["item"]["nickname"] == "新示例"
     assert updated["url_changed"] is False
 
@@ -109,6 +109,55 @@ async def test_subscription_crud_with_nickname(plugin_env: Any) -> None:
     with pytest.raises(ActionError) as info:
         await plugin_env.invoke("subscriptions.remove", {"id": item["id"]})
     assert info.value.code == "not_found"
+
+
+async def test_subscription_name_is_trimmed_unique_and_no_spaces(
+    plugin_env: Any,
+) -> None:
+    created = await plugin_env.invoke(
+        "subscriptions.create",
+        {
+            "name": "  Alpha  ",
+            "nickname": "甲",
+            "url": "https://93.184.216.60/rss",
+        },
+    )
+    assert created["item"]["name"] == "Alpha"
+
+    with pytest.raises(ActionError) as info:
+        await plugin_env.invoke(
+            "subscriptions.create",
+            {
+                "name": "Alpha",
+                "nickname": "乙",
+                "url": "https://93.184.216.61/rss",
+            },
+        )
+    assert info.value.code == "duplicate"
+
+    with pytest.raises(ActionError) as info:
+        await plugin_env.invoke(
+            "subscriptions.create",
+            {
+                "name": "Beta Gamma",
+                "nickname": "丙",
+                "url": "https://93.184.216.62/rss",
+            },
+        )
+    assert info.value.code == "invalid_input"
+
+    with pytest.raises(ActionError) as info:
+        await plugin_env.invoke(
+            "subscriptions.update",
+            {"id": created["item"]["id"], "name": "中新网要闻导读"},
+        )
+    assert info.value.code == "duplicate"
+
+    renamed = await plugin_env.invoke(
+        "subscriptions.update",
+        {"id": created["item"]["id"], "name": "  Beta  "},
+    )
+    assert renamed["item"]["name"] == "Beta"
 
 
 async def test_subscription_limit_and_warning(plugin_env: Any) -> None:

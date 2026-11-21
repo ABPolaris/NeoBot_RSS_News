@@ -432,6 +432,11 @@
       byId("sub-name").focus();
       return;
     }
+    if (/\s/.test(name)) {
+      notify("名称不能包含空格", "请删除名称中的空白字符。", "warn");
+      byId("sub-name").focus();
+      return;
+    }
     if (!url) {
       notify("请填写 RSS 地址", "地址必须以 http:// 或 https:// 开头。", "warn");
       byId("sub-url").focus();

@@ -82,6 +82,56 @@ async def test_duplicate_url_and_nickname(store: RssNewsStore) -> None:
     assert available_weights(await store.list_subscriptions()) == [4, 6, 7, 8, 9, 10]
 
 
+async def test_name_is_trimmed_and_unique(store: RssNewsStore) -> None:
+    now = 1_800_000_000
+    alpha = await store.add_subscription(
+        "  Alpha  ", "https://alpha.example/rss", None, None, now
+    )
+    assert alpha.name == "Alpha"
+    with pytest.raises(ValueError):
+        await store.add_subscription(
+            "Beta Gamma", "https://beta.example/rss", None, None, now
+        )
+    with pytest.raises(DuplicateValueError):
+        await store.add_subscription(
+            "Alpha", "https://alpha2.example/rss", None, None, now
+        )
+
+    beta = await store.add_subscription(
+        "Beta", "https://beta.example/rss", None, None, now
+    )
+    with pytest.raises(DuplicateValueError):
+        await store.update_subscription(
+            beta.id,
+            name="Alpha",
+            url=None,
+            nickname=None,
+            nickname_changed=False,
+            weight=None,
+            now=now + 1,
+        )
+    with pytest.raises(ValueError):
+        await store.update_subscription(
+            beta.id,
+            name="Beta Gamma",
+            url=None,
+            nickname=None,
+            nickname_changed=False,
+            weight=None,
+            now=now + 2,
+        )
+    renamed, _ = await store.update_subscription(
+        beta.id,
+        name=" Gamma ",
+        url=None,
+        nickname=None,
+        nickname_changed=False,
+        weight=None,
+        now=now + 3,
+    )
+    assert renamed.name == "Gamma"
+
+
 async def test_set_and_clear_nickname(store: RssNewsStore) -> None:
     now = 1_800_000_000
     await store.init_presets(PRESETS, now)

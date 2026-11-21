@@ -11,6 +11,7 @@ import asyncio
 from collections.abc import Iterable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
+from sqlite3 import IntegrityError
 from typing import Any
 
 import aiosqlite
@@ -31,8 +32,9 @@ from .presets import PRESETS
 MAX_SUBSCRIPTIONS = 7
 MIN_WEIGHT = 1
 MAX_WEIGHT = 10
+MAX_NAME_LENGTH = 100
 MAX_NICKNAME_LENGTH = 64
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _META_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -51,6 +53,11 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     created_at INTEGER NOT NULL,
     pull_at INTEGER
 )
+"""
+
+_NAME_INDEX_SQL = """
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_name
+    ON subscriptions (name)
 """
 
 _NICKNAME_INDEX_SQL = """
@@ -117,6 +124,17 @@ def _row_to_article(row: aiosqlite.Row) -> Article:
         summary=str(row["summary"] or ""),
         pubdate=int(row["pubdate"]),
     )
+
+
+def _normalize_name(value: str | None) -> str:
+    text = (value or "").strip()
+    if not text:
+        raise ValueError("订阅名称不能为空")
+    if len(text) > MAX_NAME_LENGTH:
+        raise ValueError(f"订阅名称不能超过 {MAX_NAME_LENGTH} 个字符")
+    if any(character.isspace() for character in text):
+        raise ValueError("订阅名称不能包含空格")
+    return text
 
 
 def _normalize_nickname(value: str | None) -> str | None:
@@ -196,8 +214,10 @@ class RssNewsStore:
         version = await self._schema_version(db)
         tables = await self._tables(db)
         try:
-            if version < SCHEMA_VERSION:
+            if version < 2:
                 await self._migrate_to_v2(db, tables)
+            if version < 3:
+                await self._migrate_to_v3(db)
             else:
                 await self._ensure_current_schema(db, tables)
             # 被动发送模式不再使用接收者与已发送记录。
@@ -246,8 +266,48 @@ class RssNewsStore:
                 await db.execute("ALTER TABLE articles_new RENAME TO articles")
         await db.execute(_ARTICLE_INDEX_SQL)
         await db.execute(
-            "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)",
-            (str(SCHEMA_VERSION),),
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '2')"
+        )
+
+    async def _normalize_subscription_names(
+        self, db: aiosqlite.Connection
+    ) -> None:
+        cursor = await db.execute("SELECT id, name FROM subscriptions ORDER BY id")
+        rows = await cursor.fetchall()
+        used: set[str] = set()
+        updates: list[tuple[str, int]] = []
+        for row in rows:
+            subscription_id = int(row["id"])
+            raw = str(row["name"] or "")
+            base = "".join(raw.split()) or f"订阅-{subscription_id}"
+            base = base[:MAX_NAME_LENGTH]
+            candidate = base
+            suffix = 2
+            while candidate in used:
+                suffix_text = f"-{suffix}"
+                candidate = (
+                    f"{base[: max(0, MAX_NAME_LENGTH - len(suffix_text))]}"
+                    f"{suffix_text}"
+                )
+                suffix += 1
+            used.add(candidate)
+            if candidate != raw:
+                updates.append((candidate, subscription_id))
+        for name, subscription_id in updates:
+            await db.execute(
+                "UPDATE subscriptions SET name = ? WHERE id = ?",
+                (name, subscription_id),
+            )
+
+    async def _migrate_to_v3(self, db: aiosqlite.Connection) -> None:
+        await db.execute(_SUBSCRIPTIONS_SQL)
+        if "nickname" not in await self._columns(db, "subscriptions"):
+            await db.execute("ALTER TABLE subscriptions ADD COLUMN nickname TEXT")
+        await db.execute(_NICKNAME_INDEX_SQL)
+        await self._normalize_subscription_names(db)
+        await db.execute(_NAME_INDEX_SQL)
+        await db.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '3')"
         )
 
     async def _ensure_current_schema(
@@ -259,11 +319,12 @@ class RssNewsStore:
             if "nickname" not in columns:
                 await db.execute("ALTER TABLE subscriptions ADD COLUMN nickname TEXT")
         await db.execute(_NICKNAME_INDEX_SQL)
+        await self._normalize_subscription_names(db)
+        await db.execute(_NAME_INDEX_SQL)
         await db.execute(_ARTICLES_SQL)
         await db.execute(_ARTICLE_INDEX_SQL)
         await db.execute(
-            "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)",
-            (str(SCHEMA_VERSION),),
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '3')"
         )
 
     @asynccontextmanager
@@ -372,6 +433,20 @@ class RssNewsStore:
         row = await cursor.fetchone()
         return str(row["name"]) if row is not None else None
 
+    async def _name_taken(
+        self, db: aiosqlite.Connection, name: str, exclude_id: int | None
+    ) -> bool:
+        if exclude_id is None:
+            cursor = await db.execute(
+                "SELECT id FROM subscriptions WHERE name = ?", (name,)
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT id FROM subscriptions WHERE name = ? AND id != ?",
+                (name, exclude_id),
+            )
+        return await cursor.fetchone() is not None
+
     async def add_subscription(
         self,
         name: str,
@@ -380,7 +455,7 @@ class RssNewsStore:
         weight: int | None,
         now: int,
     ) -> Subscription:
-        clean_name = _require_text(name, "订阅名称", 100)
+        clean_name = _normalize_name(name)
         clean_url = _require_text(url, "RSS 地址", 2048)
         clean_nickname = _normalize_nickname(nickname)
         async with self._session(write=True) as db:
@@ -390,6 +465,8 @@ class RssNewsStore:
                 raise SubscriptionLimitError(
                     f"订阅列表最多 {MAX_SUBSCRIPTIONS} 条，请先删除一条再添加"
                 )
+            if await self._name_taken(db, clean_name, None):
+                raise DuplicateValueError(f"订阅名称“{clean_name}”已被使用")
             cursor = await db.execute(
                 "SELECT id FROM subscriptions WHERE url = ?", (clean_url,)
             )
@@ -405,12 +482,17 @@ class RssNewsStore:
                 raise DuplicateValueError("权重必须在 1~10 之间")
             if chosen in used:
                 raise DuplicateValueError(f"权重 {chosen} 已被占用，请选择其它数值")
-            cursor = await db.execute(
-                "INSERT INTO subscriptions "
-                "(name, url, nickname, weight, created_at, pull_at) "
-                "VALUES (?, ?, ?, ?, ?, NULL)",
-                (clean_name, clean_url, clean_nickname, chosen, now),
-            )
+            try:
+                cursor = await db.execute(
+                    "INSERT INTO subscriptions "
+                    "(name, url, nickname, weight, created_at, pull_at) "
+                    "VALUES (?, ?, ?, ?, ?, NULL)",
+                    (clean_name, clean_url, clean_nickname, chosen, now),
+                )
+            except IntegrityError:
+                raise DuplicateValueError(
+                    "订阅名称、RSS 地址或权重与已有订阅重复"
+                ) from None
             subscription_id = int(cursor.lastrowid or 0)
             cursor = await db.execute(
                 """
@@ -447,7 +529,7 @@ class RssNewsStore:
             if existing is None:
                 raise NotFoundError("订阅不存在或已被删除")
             new_name = (
-                _require_text(name, "订阅名称", 100)
+                _normalize_name(name)
                 if name is not None
                 else str(existing["name"])
             )
@@ -464,6 +546,10 @@ class RssNewsStore:
                 if nickname_changed
                 else (str(existing["nickname"]) if existing["nickname"] else None)
             )
+            if new_name != str(existing["name"]) and await self._name_taken(
+                db, new_name, subscription_id
+            ):
+                raise DuplicateValueError(f"订阅名称“{new_name}”已被使用")
             url_changed = new_url != str(existing["url"])
             if url_changed:
                 cursor = await db.execute(
@@ -483,28 +569,34 @@ class RssNewsStore:
                 owner = await self._nickname_taken(db, new_nickname, subscription_id)
                 if owner is not None:
                     raise DuplicateValueError(f"昵称“{new_nickname}”已被订阅“{owner}”使用")
-            if url_changed:
-                await db.execute(
-                    "DELETE FROM articles WHERE source_id = ?", (subscription_id,)
-                )
-                await db.execute(
-                    "UPDATE subscriptions SET name = ?, url = ?, nickname = ?, "
-                    "weight = ?, created_at = ?, pull_at = NULL WHERE id = ?",
-                    (
-                        new_name,
-                        new_url,
-                        new_nickname,
-                        new_weight,
-                        now,
-                        subscription_id,
-                    ),
-                )
-            else:
-                await db.execute(
-                    "UPDATE subscriptions SET name = ?, nickname = ?, weight = ? "
-                    "WHERE id = ?",
-                    (new_name, new_nickname, new_weight, subscription_id),
-                )
+            try:
+                if url_changed:
+                    await db.execute(
+                        "DELETE FROM articles WHERE source_id = ?",
+                        (subscription_id,),
+                    )
+                    await db.execute(
+                        "UPDATE subscriptions SET name = ?, url = ?, nickname = ?, "
+                        "weight = ?, created_at = ?, pull_at = NULL WHERE id = ?",
+                        (
+                            new_name,
+                            new_url,
+                            new_nickname,
+                            new_weight,
+                            now,
+                            subscription_id,
+                        ),
+                    )
+                else:
+                    await db.execute(
+                        "UPDATE subscriptions SET name = ?, nickname = ?, weight = ? "
+                        "WHERE id = ?",
+                        (new_name, new_nickname, new_weight, subscription_id),
+                    )
+            except IntegrityError:
+                raise DuplicateValueError(
+                    "订阅名称、RSS 地址或权重与已有订阅重复"
+                ) from None
             cursor = await db.execute(
                 """
                 SELECT s.*,

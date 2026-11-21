@@ -130,7 +130,7 @@ def main() -> int:
     try:
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
         refresh(os.environ["GITHUB_EVENT_NAME"], event, os.environ["GITHUB_REPOSITORY"])
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - CI 门禁统一转成可读失败
         print(f"::error::刷新 PR 门禁失败：{type(exc).__name__}: {exc}")
         return 1
     return 0

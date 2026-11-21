@@ -43,7 +43,8 @@ jobs:
 
   review:
     name: PR 评审（阻断）
-    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    # QuailEgg 的 release 发布 PR 由发布流程生成，不要求人工评审评论。
+    if: github.head_ref != 'release'
     runs-on: ubuntu-latest
     steps:
       - name: 检出仓库

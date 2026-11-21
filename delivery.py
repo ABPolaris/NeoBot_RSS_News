@@ -204,7 +204,6 @@ class NewsDelivery:
                         await self.store.insert_articles(
                             source.id, result.entries, int(self._clock())
                         )
-                        return True
                     except asyncio.CancelledError:
                         raise
                     except Exception as exc:  # noqa: BLE001 - 单个源失败隔离
@@ -213,13 +212,17 @@ class NewsDelivery:
                             f"拉取订阅「{source.name}」失败：{type(exc).__name__}",
                         )
                         return False
-                    finally:
-                        try:
-                            await self.store.set_pull_at(
-                                source.id, int(self._clock())
-                            )
-                        except Exception:  # noqa: BLE001, S110
-                            pass
+                    try:
+                        await self.store.set_pull_at(
+                            source.id, int(self._clock())
+                        )
+                    except Exception as exc:  # noqa: BLE001 - 已缓存，记录后继续
+                        self._log(
+                            "warning",
+                            f"更新订阅「{source.name}」拉取时间失败："
+                            f"{type(exc).__name__}",
+                        )
+                    return True
 
             tasks = [asyncio.create_task(fetch_one(source)) for source in due]
             budget = max(5.0, interval * 0.75 - (self._clock() - now))

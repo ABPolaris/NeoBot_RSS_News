@@ -31,7 +31,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 API_ROOT = "https://api.github.com"
 _NEXT_LINK_RE = re.compile(r'<([^>]+)>;\s*rel="next"')
@@ -42,9 +42,7 @@ def parse_time(value: str | None) -> datetime | None:
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(
-            timezone.utc
-        )
+        return datetime.fromisoformat(text).astimezone(UTC)
     except ValueError:
         return None
 
@@ -68,8 +66,10 @@ def evaluate(
     if not valid:
         return (
             False,
-            "PR 下还没有评审评论。请在本 PR 下留一条 review 评论"
-            "（AI 自评必须由独立子代理完成，且不能带开发上下文）。",
+            (
+                "PR 下还没有评审评论。请在本 PR 下留一条 review 评论"
+                "（AI 自评必须由独立子代理完成，且不能带开发上下文）。"
+            ),
         )
     latest = max(valid)
     if commit_time is None:
@@ -77,13 +77,17 @@ def evaluate(
     if latest <= commit_time:
         return (
             False,
-            f"最后一次 review 是 {latest.isoformat()}，不晚于最后一次 commit "
-            f"{commit_time.isoformat()}；推送新提交后必须重新评审并留言。",
+            (
+                f"最后一次 review 是 {latest.isoformat()}，不晚于最后一次 commit "
+                f"{commit_time.isoformat()}；推送新提交后必须重新评审并留言。"
+            ),
         )
     return (
         True,
-        f"通过：最后一次 review {latest.isoformat()} 晚于最后一次 commit "
-        f"{commit_time.isoformat()}。",
+        (
+            f"通过：最后一次 review {latest.isoformat()} 晚于最后一次 commit "
+            f"{commit_time.isoformat()}。"
+        ),
     )
 
 

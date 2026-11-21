@@ -90,6 +90,54 @@ def create_old_database(path: Path) -> None:
         connection.close()
 
 
+def create_v2_database(path: Path) -> None:
+    connection = sqlite3.connect(path)
+    try:
+        connection.executescript(
+            """
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            INSERT INTO meta (key, value) VALUES ('presets_initialized', '1');
+            INSERT INTO meta (key, value) VALUES ('schema_version', '2');
+
+            CREATE TABLE subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                url TEXT NOT NULL UNIQUE,
+                nickname TEXT,
+                weight INTEGER NOT NULL UNIQUE,
+                created_at INTEGER NOT NULL,
+                pull_at INTEGER
+            );
+            CREATE TABLE articles (
+                source_id INTEGER NOT NULL,
+                guid TEXT NOT NULL,
+                title TEXT,
+                link TEXT,
+                body TEXT,
+                summary TEXT,
+                pubdate INTEGER NOT NULL,
+                fetched_at INTEGER NOT NULL,
+                PRIMARY KEY (source_id, guid)
+            );
+            CREATE INDEX idx_articles_source_pubdate
+                ON articles (source_id, pubdate DESC);
+            """
+        )
+        connection.executemany(
+            "INSERT INTO subscriptions "
+            "(name, url, nickname, weight, created_at, pull_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                ("A", "https://a.example/rss", None, 1, NOW, NOW),
+                ("A", "https://a2.example/rss", None, 2, NOW, NOW),
+                (" B ", "https://b.example/rss", None, 3, NOW, NOW),
+            ],
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def table_names(path: Path) -> set[str]:
     connection = sqlite3.connect(path)
     try:
@@ -107,6 +155,17 @@ def table_columns(path: Path, table: str) -> set[str]:
     connection = sqlite3.connect(path)
     try:
         return {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+    finally:
+        connection.close()
+
+
+def index_names(path: Path, table: str) -> set[str]:
+    connection = sqlite3.connect(path)
+    try:
+        return {
+            str(row[1])
+            for row in connection.execute(f"PRAGMA index_list({table})")
+        }
     finally:
         connection.close()
 
@@ -136,7 +195,31 @@ async def test_old_schema_is_migrated(tmp_path: Path) -> None:
     assert "articles" in names
     assert "deleted_at" not in table_columns(path, "articles")
     assert "nickname" in table_columns(path, "subscriptions")
+    assert "idx_subscriptions_name" in index_names(path, "subscriptions")
 
+    connection = sqlite3.connect(path)
+    try:
+        version = connection.execute(
+            "SELECT value FROM meta WHERE key = 'schema_version'"
+        ).fetchone()
+        assert version == (str(SCHEMA_VERSION),)
+    finally:
+        connection.close()
+
+
+async def test_v2_names_are_normalized_and_deduplicated(tmp_path: Path) -> None:
+    path = tmp_path / "rss_news.db"
+    create_v2_database(path)
+    store = RssNewsStore(path)
+    await store.open()
+    try:
+        subscriptions = await store.list_subscriptions()
+        assert [item.name for item in subscriptions] == ["A", "A-2", "B"]
+    finally:
+        await store.close()
+
+    assert "idx_subscriptions_name" in index_names(path, "subscriptions")
+    assert "idx_subscriptions_nickname" in index_names(path, "subscriptions")
     connection = sqlite3.connect(path)
     try:
         version = connection.execute(
