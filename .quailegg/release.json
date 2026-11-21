@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "version": "0.3.0-a3",
-  "created_at": "2026-11-17T23:35:58.293268244+08:00",
+  "version": "0.3.0-a4",
+  "created_at": "2026-11-21T08:08:05.364647535Z",
   "mode": "pr",
   "channel": "alpha",
-  "fingerprint": "sha256:0d9c98bdd75dacb8d30fb48cfc8c71d25143d3987a5b922bf88594129932037b",
+  "fingerprint": "sha256:09def5deb94eab502ef711395f4a498de96bfded5ec36a4640cf84567a19bd0f",
   "repo": {
     "host": "github.com",
     "owner": "ABPolaris",
@@ -16,25 +16,25 @@
       "uv run pytest -q"
     ],
     "skipped": true,
-    "at": "2026-11-17T23:35:58.293268555+08:00"
+    "at": "2026-11-21T08:08:05.364648016Z"
   },
   "packages": [
     {
       "name": "python@neobot-rss-news",
       "path": ".",
       "resolver": "python",
-      "current": "0.3.0-a2",
-      "next": "0.3.0-a3",
+      "current": "0.3.0-a3",
+      "next": "0.3.0-a4",
       "bump": "minor",
-      "tag": "v0.3.0a3",
+      "tag": "v0.3.0a4",
       "publish": false
     }
   ],
   "releases": [
     {
-      "version": "0.3.0-a3",
-      "tag": "v0.3.0a3",
-      "previous_tag": "v0.3.0a2",
+      "version": "0.3.0-a4",
+      "tag": "v0.3.0a4",
+      "previous_tag": "v0.3.0a3",
       "packages": [
         "python@neobot-rss-news"
       ],
@@ -56,6 +56,19 @@
       "author": "ABPolaris"
     },
     {
+      "file": ".changes/ci-scripts.md",
+      "type": "chore",
+      "scope": "ci",
+      "bump": "patch",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "修复 PR 门禁脚本的 lint 问题，让 QuailEgg 的 release 发布 PR 豁免人工评审门禁，并让发布工作流跳过依赖宿主测试环境的 verify。",
+      "commit": "a26b14d1afd1e60572fceb9f6217b8902f1785ad",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/a26b14d1afd1e60572fceb9f6217b8902f1785ad",
+      "author": "ABPolaris"
+    },
+    {
       "file": ".changes/initial.md",
       "type": "feat",
       "bump": "minor",
@@ -65,6 +78,32 @@
       "body": "NeoBot_RSS_News 改为指令驱动的按需拉取与私聊发送：新增 /RSS新闻、/所有RSS新闻、/RSS列表、/设置昵称，取消定时发送、发送格式、接收者与已发送表，订阅增加唯一简称。",
       "commit": "ba55871a1f1929c7f49126c84e7f3fc0a3ebba39",
       "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/ba55871a1f1929c7f49126c84e7f3fc0a3ebba39",
+      "author": "ABPolaris"
+    },
+    {
+      "file": ".changes/name-unique.md",
+      "type": "feat",
+      "scope": "storage",
+      "bump": "minor",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "订阅名称增加唯一约束并禁止空白：v3 迁移会去掉历史名称中的空白、重名追加 `-2`/`-3`，新建和改名也会统一校验。",
+      "commit": "a26b14d1afd1e60572fceb9f6217b8902f1785ad",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/a26b14d1afd1e60572fceb9f6217b8902f1785ad",
+      "author": "ABPolaris"
+    },
+    {
+      "file": ".changes/pull-at-success.md",
+      "type": "fix",
+      "scope": "delivery",
+      "bump": "patch",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "拉取失败、超时或取消时不再更新 `pull_at`，下一次请求会重新尝试拉取。",
+      "commit": "a26b14d1afd1e60572fceb9f6217b8902f1785ad",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/a26b14d1afd1e60572fceb9f6217b8902f1785ad",
       "author": "ABPolaris"
     },
     {
@@ -101,9 +140,22 @@
       "packages": [
         "python@neobot-rss-news"
       ],
-      "body": "新增 `/随机RSS新闻`：按需拉取后随机发送一篇缓存文章，可指定一个订阅；私聊和群聊可用。",
+      "body": "新增 `/随机RSS新闻`：按需拉取后随机发送一篇缓存文章，可指定一个订阅。",
       "commit": "fc25c827fa324a7a5cdd0999c0a4af9ab55deab1",
       "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/fc25c827fa324a7a5cdd0999c0a4af9ab55deab1",
+      "author": "ABPolaris"
+    },
+    {
+      "file": ".changes/random-private.md",
+      "type": "fix",
+      "scope": "News",
+      "bump": "patch",
+      "packages": [
+        "python@neobot-rss-news"
+      ],
+      "body": "`/随机RSS新闻` 改为仅私聊可用，群聊统一回复“新闻仅支持在私聊中查看。”。",
+      "commit": "a26b14d1afd1e60572fceb9f6217b8902f1785ad",
+      "commit_url": "https://github.com/ABPolaris/NeoBot_RSS_News/commit/a26b14d1afd1e60572fceb9f6217b8902f1785ad",
       "author": "ABPolaris"
     },
     {
@@ -125,6 +177,7 @@
     ".changes/initial.md",
     ".changes/qegg-changelog.md",
     ".changes/quailegg.md",
+    ".changes/random-news.md",
     ".changes/rss.md"
   ],
   "qegg": {
